@@ -40,16 +40,31 @@ $books = mysqli_stmt_get_result($stmt);
             <div class="table-responsive">
                 <table class="table table-bordered align-middle bg-white">
                     <thead class="table-secondary">
-                        <tr><th>Ảnh</th><th>Tên sách</th><th>Tác giả</th><th>Thể loại</th><th>Giá</th><th>Thao tác</th></tr>
+                        <tr><th>Ảnh</th><th>Tên sách</th><th>Tác giả</th><th>Thể loại</th><th>Giá</th><th>Trạng thái</th><th>Thao tác</th></tr>
                     </thead>
                     <tbody>
                     <?php while ($book = mysqli_fetch_assoc($books)): ?>
                         <tr>
-                            <td><img src="../uploads/<?= htmlspecialchars($book["image"] ?? "default.jpg") ?>" alt="" style="height:55px;max-width:60px;object-fit:cover"></td>
+                            <td>
+                                <?php if ($book["seller_id"] !== null && $book["approval_status"] !== "approved"): ?>
+                                    <img src="../book_image.php?id=<?= (int)$book["id"] ?>" alt="" style="height:55px;max-width:60px;object-fit:cover">
+                                <?php else: ?>
+                                    <img src="../uploads/<?= htmlspecialchars($book["image"] ?? "default.jpg") ?>" alt="" style="height:55px;max-width:60px;object-fit:cover">
+                                <?php endif; ?>
+                            </td>
                             <td><?= htmlspecialchars($book["title"]) ?></td>
                             <td><?= htmlspecialchars($book["author"]) ?></td>
                             <td><?= htmlspecialchars($book["category_name"] ?? "") ?></td>
                             <td><?= number_format($book["price"], 0, ",", ".") ?> đ</td>
+                            <td>
+                                <?php if ($book["seller_id"] === null || $book["approval_status"] === "approved"): ?>
+                                    <span class="badge bg-success">Đã duyệt</span>
+                                <?php elseif ($book["approval_status"] === "pending"): ?>
+                                    <span class="badge bg-warning text-dark">Chờ admin duyệt</span>
+                                <?php else: ?>
+                                    <span class="badge bg-danger">Bị từ chối — chỉnh sửa để gửi lại</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-nowrap">
                                 <a class="btn btn-warning btn-sm" href="book_edit.php?id=<?= (int)$book["id"] ?>">Sửa</a>
                                 <form class="d-inline" method="post" action="book_delete.php" onsubmit="return confirm('Xóa sách này?')">

@@ -8,12 +8,17 @@ if (!isset($_SESSION["admin"])) {
 }
 require "../db.php";
 
-$sql = "SELECT b.*, c.name AS category_name 
+$sql = "SELECT b.*, c.name AS category_name, u.full_name AS seller_name, u.email AS seller_email
         FROM books b 
-        JOIN categories c ON b.category_id = c.id 
+        LEFT JOIN categories c ON b.category_id = c.id
+        LEFT JOIN users u ON b.seller_id = u.id
+        WHERE b.seller_id IS NULL OR b.approval_status = 'approved'
         ORDER BY b.id DESC";
 $result = mysqli_query($conn, $sql);
 $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at FROM users WHERE role = 'seller' AND status = 'pending' ORDER BY created_at ASC");
+$pendingBooks = mysqli_query($conn, "SELECT b.id, b.title, b.author, b.price, b.image, b.pending_image, b.description, c.name AS category_name, u.full_name AS seller_name, u.email AS seller_email FROM books b JOIN users u ON b.seller_id = u.id LEFT JOIN categories c ON b.category_id = c.id WHERE b.approval_status = 'pending' ORDER BY b.id ASC");
+$accounts = mysqli_query($conn, "SELECT id, full_name, email, role, status, created_at FROM users ORDER BY created_at DESC");
+$orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -29,6 +34,8 @@ $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at F
             <a class="navbar-brand fw-bold" href="index.php">⚙️ ADMIN BOOKSTORE</a>
             <div class="d-flex align-items-center text-white">
                 <span class="me-3">Xin chào, <strong><?= $_SESSION["admin"] ?></strong></span>
+                <a href="#accounts" class="btn btn-outline-light btn-sm me-2">Tài khoản</a>
+                <a href="#orders" class="btn btn-outline-light btn-sm me-2">Đơn hàng</a>
                 <a href="../index.php" class="btn btn-outline-light btn-sm me-2" target="_blank">Xem Website</a>
                 <a href="logout.php" class="btn btn-danger btn-sm">Đăng xuất</a>
             </div>
@@ -36,6 +43,47 @@ $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at F
     </nav>
 
     <div class="container my-4">
+        <section class="mb-5">
+            <h3>Yêu cầu đăng sách chờ duyệt</h3>
+            <?php if (mysqli_num_rows($pendingBooks) === 0): ?>
+                <p class="text-muted">Không có sách nào đang chờ duyệt.</p>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle bg-white">
+                        <thead class="table-secondary">
+                            <tr><th>Ảnh</th><th>Sách</th><th>Người bán</th><th>Thể loại</th><th>Giá</th><th>Mô tả</th><th>Thao tác</th></tr>
+                        </thead>
+                        <tbody>
+                        <?php while ($book = mysqli_fetch_assoc($pendingBooks)): ?>
+                            <tr>
+                                <td><img src="../book_image.php?id=<?= (int)$book["id"] ?>" alt="" style="height:90px;max-width:70px;object-fit:cover"></td>
+                                <td><strong><?= htmlspecialchars($book["title"]) ?></strong><br><span class="text-muted"><?= htmlspecialchars($book["author"]) ?></span></td>
+                                <td><?= htmlspecialchars($book["seller_name"]) ?><br><a href="mailto:<?= htmlspecialchars($book["seller_email"]) ?>"><?= htmlspecialchars($book["seller_email"]) ?></a></td>
+                                <td><?= htmlspecialchars($book["category_name"] ?? "") ?></td>
+                                <td><?= number_format($book["price"], 0, ",", ".") ?> đ</td>
+                                <td><?= nl2br(htmlspecialchars($book["description"] ?? "")) ?></td>
+                                <td class="text-nowrap">
+                                    <form method="post" action="book_review.php" class="mb-2">
+                                        <input type="hidden" name="id" value="<?= (int)$book["id"] ?>">
+                                        <input type="hidden" name="action" value="approve">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                        <button class="btn btn-success btn-sm" type="submit">Duyệt và đăng</button>
+                                    </form>
+                                    <form method="post" action="book_review.php" onsubmit="return confirm('Từ chối sách này?')">
+                                        <input type="hidden" name="id" value="<?= (int)$book["id"] ?>">
+                                        <input type="hidden" name="action" value="reject">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                        <button class="btn btn-outline-danger btn-sm" type="submit">Từ chối</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </section>
+
         <section class="mb-4">
             <h3>Yêu cầu tài khoản người bán</h3>
             <?php if (mysqli_num_rows($pendingSellers) === 0): ?>
@@ -84,6 +132,7 @@ $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at F
                         <th style="width: 60px;">ID</th>
                         <th style="width: 80px;">Ảnh</th>
                         <th>Tên sách</th>
+                        <th>Người bán</th>
                         <th>Tác giả</th>
                         <th>Thể loại</th>
                         <th>Giá bán</th>
@@ -101,6 +150,7 @@ $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at F
                                  onerror="this.src=''"> <!-- 👈 Đã để trống: Ảnh dự phòng cho Admin -->
                         </td>
                         <td class="fw-bold"><?= htmlspecialchars($row['title']) ?></td>
+                        <td><?= htmlspecialchars($row['seller_name'] ?? "Admin") ?><?php if (!empty($row["seller_email"])): ?><br><small><?= htmlspecialchars($row["seller_email"]) ?></small><?php endif; ?></td>
                         <td><?= htmlspecialchars($row['author']) ?></td>
                         <td><span class="badge bg-info text-dark"><?= htmlspecialchars($row['category_name']) ?></span></td>
                         <td class="text-danger fw-bold"><?= number_format($row['price'], 0, ',', '.') ?> đ</td>
@@ -115,6 +165,53 @@ $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at F
                 </tbody>
             </table>
         </div>
+
+        <section id="accounts" class="mb-5">
+            <h3>Tài khoản người bán và khách hàng</h3>
+            <p class="text-muted">Thông tin mật khẩu không được hiển thị.</p>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle bg-white">
+                    <thead class="table-secondary"><tr><th>Họ tên</th><th>Email</th><th>Loại tài khoản</th><th>Trạng thái</th><th>Ngày đăng ký</th></tr></thead>
+                    <tbody>
+                    <?php while ($account = mysqli_fetch_assoc($accounts)): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($account["full_name"]) ?></td>
+                            <td><a href="mailto:<?= htmlspecialchars($account["email"]) ?>"><?= htmlspecialchars($account["email"]) ?></a></td>
+                            <td><?= $account["role"] === "seller" ? "Người bán" : "Khách hàng" ?></td>
+                            <td><?= htmlspecialchars($account["status"]) ?></td>
+                            <td><?= htmlspecialchars($account["created_at"]) ?></td>
+                        </tr>
+                    <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="orders" class="mb-5">
+            <h3>Đơn hàng gần đây</h3>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle bg-white">
+                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người mua</th><th>Liên hệ</th><th>Địa chỉ giao hàng</th><th>Sách</th><th>Tổng tiền</th><th>Ngày đặt</th></tr></thead>
+                    <tbody>
+                    <?php if (mysqli_num_rows($orders) === 0): ?>
+                        <tr><td colspan="7" class="text-center text-muted">Chưa có đơn hàng.</td></tr>
+                    <?php else: ?>
+                        <?php while ($order = mysqli_fetch_assoc($orders)): ?>
+                            <tr>
+                                <td>#<?= (int)$order["id"] ?></td>
+                                <td><?= htmlspecialchars($order["account_name"] ?? $order["customer_name"]) ?><?php if (!empty($order["email"])): ?><br><small><?= htmlspecialchars($order["email"]) ?></small><?php endif; ?></td>
+                                <td><?= htmlspecialchars($order["phone"]) ?></td>
+                                <td><?= htmlspecialchars($order["address"]) ?></td>
+                                <td><?= htmlspecialchars($order["items"] ?? "") ?></td>
+                                <td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td>
+                                <td><?= htmlspecialchars($order["created_at"] ?? "") ?></td>
+                            </tr>
+                        <?php endwhile; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 </body>
 </html>

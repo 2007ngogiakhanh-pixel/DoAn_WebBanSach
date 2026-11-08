@@ -8,7 +8,8 @@ $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $result = mysqli_query($conn, "SELECT b.*, c.name AS category_name 
                                FROM books b 
                                JOIN categories c ON b.category_id = c.id 
-                               WHERE b.id = $id");
+                               WHERE b.id = $id
+                                 AND (b.seller_id IS NULL OR b.approval_status = 'approved')");
 
 if (mysqli_num_rows($result) == 0) {
     header("Location: index.php");

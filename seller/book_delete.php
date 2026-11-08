@@ -3,6 +3,7 @@ session_start();
 require "../auth.php";
 require_role("seller");
 require "../db.php";
+require "../book_helpers.php";
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     header("Location: index.php");
@@ -15,7 +16,7 @@ if (!verify_csrf_token()) {
 
 $id = (int)($_POST["id"] ?? 0);
 $sellerId = (int)$_SESSION["user_id"];
-$stmt = mysqli_prepare($conn, "SELECT image FROM books WHERE id = ? AND seller_id = ?");
+$stmt = mysqli_prepare($conn, "SELECT image, pending_image FROM books WHERE id = ? AND seller_id = ?");
 mysqli_stmt_bind_param($stmt, "ii", $id, $sellerId);
 mysqli_stmt_execute($stmt);
 $book = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
@@ -29,6 +30,7 @@ if ($book) {
     if ($book["image"] !== "default.jpg" && is_file(__DIR__ . "/../uploads/" . $book["image"])) {
         unlink(__DIR__ . "/../uploads/" . $book["image"]);
     }
+    delete_pending_book_image($book["pending_image"]);
 }
 
 header("Location: index.php");

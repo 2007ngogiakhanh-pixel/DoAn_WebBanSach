@@ -30,20 +30,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error = "Vui lòng nhập tên sách, tác giả, giá hợp lệ và chọn thể loại.";
     } else {
         $imageError = "";
-        $imageName = save_book_image($_FILES["image"] ?? [], $imageError) ?? "default.jpg";
+        $pendingImage = save_book_image($_FILES["image"] ?? [], $imageError);
         if ($imageError !== "") {
             $error = $imageError;
         } else {
             $sellerId = (int)$_SESSION["user_id"];
-            $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, description, category_id, seller_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            mysqli_stmt_bind_param($stmt, "ssissii", $title, $author, $price, $imageName, $description, $categoryId, $sellerId);
+            $imageName = "default.jpg";
+            $approvalStatus = "pending";
+            $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, pending_image, description, category_id, seller_id, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            mysqli_stmt_bind_param($stmt, "ssisssiis", $title, $author, $price, $imageName, $pendingImage, $description, $categoryId, $sellerId, $approvalStatus);
             if (mysqli_stmt_execute($stmt)) {
                 header("Location: index.php");
                 exit;
             }
-            if ($imageName !== "default.jpg" && is_file(__DIR__ . "/../uploads/" . $imageName)) {
-                unlink(__DIR__ . "/../uploads/" . $imageName);
-            }
+            delete_pending_book_image($pendingImage);
             $error = "Không thể lưu sách. Vui lòng thử lại.";
         }
     }
@@ -60,7 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <body class="bg-light">
 <main class="container my-4" style="max-width:700px">
     <div class="card shadow-sm">
-        <div class="card-header bg-success text-white"><h4 class="mb-0">Đăng bán sách</h4></div>
+        <div class="card-header bg-success text-white"><h4 class="mb-0">Gửi sách để admin duyệt</h4></div>
         <div class="card-body">
             <?php if ($error !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
             <form method="post" enctype="multipart/form-data">
@@ -79,6 +79,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="mb-3"><label class="form-label">Giá bán (đ)</label><input class="form-control" type="number" min="1" name="price" value="<?= $price ?: "" ?>" required></div>
                 <div class="mb-3"><label class="form-label">Ảnh bìa (JPG, PNG, WebP; tối đa 5 MB)</label><input class="form-control" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
                 <div class="mb-3"><label class="form-label">Mô tả</label><textarea class="form-control" name="description" rows="4"><?= htmlspecialchars($description) ?></textarea></div>
+                <p class="text-muted">Sách và ảnh sẽ được admin kiểm tra trước khi hiển thị trên cửa hàng.</p>
                 <a class="btn btn-secondary" href="index.php">Hủy</a>
                 <button class="btn btn-success" type="submit">Lưu sách</button>
             </form>

@@ -48,19 +48,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($imageError !== "") {
             $error = $imageError;
         } else {
-            $imageName = $newImage ?? $book["image"];
-            $update = mysqli_prepare($conn, "UPDATE books SET title = ?, author = ?, price = ?, image = ?, description = ?, category_id = ? WHERE id = ? AND seller_id = ?");
-            mysqli_stmt_bind_param($update, "ssissiii", $title, $author, $price, $imageName, $description, $categoryId, $id, $sellerId);
+            $pendingImage = $newImage ?? $book["pending_image"];
+            $update = mysqli_prepare($conn, "UPDATE books SET title = ?, author = ?, price = ?, pending_image = ?, description = ?, category_id = ?, approval_status = 'pending' WHERE id = ? AND seller_id = ?");
+            mysqli_stmt_bind_param($update, "ssissiii", $title, $author, $price, $pendingImage, $description, $categoryId, $id, $sellerId);
             if (mysqli_stmt_execute($update)) {
-                if ($newImage !== null && $book["image"] !== "default.jpg" && is_file(__DIR__ . "/../uploads/" . $book["image"])) {
-                    unlink(__DIR__ . "/../uploads/" . $book["image"]);
+                if ($newImage !== null && $book["pending_image"] !== null && $book["pending_image"] !== $newImage) {
+                    delete_pending_book_image($book["pending_image"]);
                 }
                 header("Location: index.php");
                 exit;
             }
-            if ($newImage !== null && is_file(__DIR__ . "/../uploads/" . $newImage)) {
-                unlink(__DIR__ . "/../uploads/" . $newImage);
-            }
+            delete_pending_book_image($newImage);
             $error = "Không thể cập nhật sách. Vui lòng thử lại.";
         }
     }
@@ -94,7 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     </select>
                 </div>
                 <div class="mb-3"><label class="form-label">Giá bán (đ)</label><input class="form-control" type="number" min="1" name="price" value="<?= $price ?>" required></div>
-                <div class="mb-3"><label class="form-label">Ảnh bìa mới (không chọn nếu giữ ảnh hiện tại)</label><input class="form-control" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
+                <div class="mb-3"><label class="form-label">Ảnh bìa mới (không chọn nếu giữ ảnh hiện tại; ảnh mới cần admin duyệt)</label><input class="form-control" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
                 <div class="mb-3"><label class="form-label">Mô tả</label><textarea class="form-control" name="description" rows="4"><?= htmlspecialchars($description) ?></textarea></div>
                 <a class="btn btn-secondary" href="index.php">Hủy</a>
                 <button class="btn btn-warning" type="submit">Lưu thay đổi</button>

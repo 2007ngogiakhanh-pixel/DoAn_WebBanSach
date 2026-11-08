@@ -31,7 +31,7 @@ if (count($cart) === 0) {
 }
 
 $ids = implode(",", array_map("intval", array_keys($cart)));
-$result = mysqli_query($conn, "SELECT id, price FROM books WHERE id IN ($ids)");
+$result = mysqli_query($conn, "SELECT id, price FROM books WHERE id IN ($ids) AND (seller_id IS NULL OR approval_status = 'approved')");
 
 $giaBook = [];
 $tong    = 0;

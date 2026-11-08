@@ -9,9 +9,9 @@ $cat_result = mysqli_query($conn, "SELECT * FROM categories");
 // Lọc theo thể loại nếu người dùng nhấp chọn
 $cat_id = isset($_GET['cat']) ? (int)$_GET['cat'] : 0;
 if ($cat_id > 0) {
-    $sql = "SELECT * FROM books WHERE category_id = $cat_id ORDER BY id DESC";
+    $sql = "SELECT * FROM books WHERE category_id = $cat_id AND (seller_id IS NULL OR approval_status = 'approved') ORDER BY id DESC";
 } else {
-    $sql = "SELECT * FROM books ORDER BY id DESC";
+    $sql = "SELECT * FROM books WHERE seller_id IS NULL OR approval_status = 'approved' ORDER BY id DESC";
 }
 $books_result = mysqli_query($conn, $sql);
 ?>

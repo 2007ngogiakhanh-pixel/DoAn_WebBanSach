@@ -15,7 +15,7 @@ if ($qty < 1) {
 }
 
 // Kiểm tra sách có tồn tại trong CSDL không
-$result = mysqli_query($conn, "SELECT id FROM books WHERE id = $id");
+$result = mysqli_query($conn, "SELECT id FROM books WHERE id = $id AND (seller_id IS NULL OR approval_status = 'approved')");
 if (mysqli_num_rows($result) == 0) {
     die("Sách không tồn tại!");
 }
