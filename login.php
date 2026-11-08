@@ -5,28 +5,38 @@ $next = ($_POST["next"] ?? $_GET["next"] ?? "") === "checkout" ? "checkout" : ""
 $loi = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $email = trim($_POST["email"] ?? "");
+    $account = trim($_POST["email"] ?? "");
     $password = $_POST["password"] ?? "";
-    $stmt = mysqli_prepare($conn, "SELECT id, full_name, password_hash, role, status FROM users WHERE email = ?");
-    mysqli_stmt_bind_param($stmt, "s", $email);
-    mysqli_stmt_execute($stmt);
-    $user = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
 
-    if (!$user || !password_verify($password, $user["password_hash"])) {
-        $loi = "Email hoặc mật khẩu không đúng.";
-    } elseif ($user["status"] !== "active") {
-        $loi = $user["status"] === "pending"
-            ? "Tài khoản người bán đang chờ admin duyệt."
-            : "Tài khoản này chưa được kích hoạt.";
-    } else {
+    if ($account === "admin" && $password === "123456") {
         session_regenerate_id(true);
-        $_SESSION["user_id"] = (int)$user["id"];
-        $_SESSION["user_name"] = $user["full_name"];
-        $_SESSION["user_role"] = $user["role"];
-        header("Location: " . ($user["role"] === "seller"
-            ? "seller/index.php"
-            : ($next === "checkout" ? "checkout.php" : "index.php")));
+        unset($_SESSION["user_id"], $_SESSION["user_name"], $_SESSION["user_role"]);
+        $_SESSION["admin"] = "admin";
+        header("Location: admin/index.php");
         exit;
+    } else {
+        $stmt = mysqli_prepare($conn, "SELECT id, full_name, password_hash, role, status FROM users WHERE email = ?");
+        mysqli_stmt_bind_param($stmt, "s", $account);
+        mysqli_stmt_execute($stmt);
+        $user = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+
+        if (!$user || !password_verify($password, $user["password_hash"])) {
+            $loi = "Email/tài khoản hoặc mật khẩu không đúng.";
+        } elseif ($user["status"] !== "active") {
+            $loi = $user["status"] === "pending"
+                ? "Tài khoản người bán đang chờ admin duyệt."
+                : "Tài khoản này chưa được kích hoạt.";
+        } else {
+            session_regenerate_id(true);
+            unset($_SESSION["admin"]);
+            $_SESSION["user_id"] = (int)$user["id"];
+            $_SESSION["user_name"] = $user["full_name"];
+            $_SESSION["user_role"] = $user["role"];
+            header("Location: " . ($user["role"] === "seller"
+                ? "seller/index.php"
+                : ($next === "checkout" ? "checkout.php" : "index.php")));
+            exit;
+        }
     }
 }
 ?>
@@ -47,8 +57,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <form method="post">
                     <input type="hidden" name="next" value="<?= htmlspecialchars($next) ?>">
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input class="form-control" type="email" name="email" required>
+                        <label class="form-label">Email hoặc tài khoản admin</label>
+                        <input class="form-control" type="text" name="email" autocomplete="username" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Mật khẩu</label>
