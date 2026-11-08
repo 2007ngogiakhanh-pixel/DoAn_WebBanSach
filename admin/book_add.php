@@ -3,15 +3,17 @@
 session_start();
 if (!isset($_SESSION["admin"])) { header("Location: login.php"); exit; }
 require "../db.php";
+require "../book_helpers.php";
 
 $categories = mysqli_query($conn, "SELECT * FROM categories");
 $loi = "";
+$categoryIds = [];
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $title       = trim($_POST["title"]);
     $author      = trim($_POST["author"]);
     $price       = (int)$_POST["price"];
-    $category_id = (int)$_POST["category_id"];
+    $categoryIds = normalize_book_category_ids($_POST["category_ids"] ?? []);
     $description = trim($_POST["description"]);
 
     // Xử lý upload hình ảnh
@@ -22,14 +24,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         move_uploaded_file($_FILES["image"]["tmp_name"], "../uploads/" . $image_name);
     }
 
-    if ($title == "" || $price <= 0) {
-        $loi = "Vui lòng điền đầy đủ tiêu đề và giá hợp lệ!";
+    if ($title == "" || $price <= 0 || !book_categories_exist($conn, $categoryIds)) {
+        $loi = "Vui lòng điền tiêu đề, giá hợp lệ và chọn ít nhất một thể loại.";
     } else {
-        $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, description, category_id) VALUES (?, ?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, "ssissi", $title, $author, $price, $image_name, $description, $category_id);
-        mysqli_stmt_execute($stmt);
-        header("Location: index.php");
-        exit;
+        if (mysqli_begin_transaction($conn)) {
+            $category_id = $categoryIds[0];
+            $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, description, category_id) VALUES (?, ?, ?, ?, ?, ?)");
+            $saved = $stmt !== false;
+            if ($saved) {
+                mysqli_stmt_bind_param($stmt, "ssissi", $title, $author, $price, $image_name, $description, $category_id);
+                $saved = mysqli_stmt_execute($stmt);
+            }
+            if ($saved) {
+                $saved = replace_book_categories($conn, mysqli_insert_id($conn), $categoryIds);
+            }
+            if ($saved && mysqli_commit($conn)) {
+                header("Location: index.php");
+                exit;
+            }
+            mysqli_rollback($conn);
+        }
+        $loi = "Không thể lưu sách. Vui lòng thử lại.";
     }
 }
 ?>
@@ -60,12 +75,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <input type="text" name="author" class="form-control" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Thể loại:</label>
-                            <select name="category_id" class="form-select">
+                            <label class="form-label fw-bold">Thể loại (chọn một hoặc nhiều):</label>
+                            <div class="border rounded p-3">
                                 <?php while ($cat = mysqli_fetch_assoc($categories)): ?>
-                                    <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></option>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="category_ids[]" value="<?= (int)$cat['id'] ?>" id="category-<?= (int)$cat['id'] ?>" <?= in_array((int)$cat['id'], $categoryIds, true) ? "checked" : "" ?>>
+                                        <label class="form-check-label" for="category-<?= (int)$cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></label>
+                                    </div>
                                 <?php endwhile; ?>
-                            </select>
+                            </div>
                         </div>
                     </div>
                     <div class="row">

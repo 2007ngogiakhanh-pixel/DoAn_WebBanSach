@@ -5,7 +5,7 @@ require_role("seller");
 require "../db.php";
 
 $sellerId = (int)$_SESSION["user_id"];
-$stmt = mysqli_prepare($conn, "SELECT b.*, c.name AS category_name FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.seller_id = ? ORDER BY b.id DESC");
+$stmt = mysqli_prepare($conn, "SELECT b.*, (SELECT GROUP_CONCAT(c2.name ORDER BY c2.name SEPARATOR ', ') FROM book_categories bc JOIN categories c2 ON c2.id = bc.category_id WHERE bc.book_id = b.id) AS category_names FROM books b WHERE b.seller_id = ? ORDER BY b.id DESC");
 mysqli_stmt_bind_param($stmt, "i", $sellerId);
 mysqli_stmt_execute($stmt);
 $books = mysqli_stmt_get_result($stmt);
@@ -54,7 +54,7 @@ $books = mysqli_stmt_get_result($stmt);
                             </td>
                             <td><?= htmlspecialchars($book["title"]) ?></td>
                             <td><?= htmlspecialchars($book["author"]) ?></td>
-                            <td><?= htmlspecialchars($book["category_name"] ?? "") ?></td>
+                            <td><?= htmlspecialchars($book["category_names"] ?? "") ?></td>
                             <td><?= number_format($book["price"], 0, ",", ".") ?> đ</td>
                             <td>
                                 <?php if ($book["seller_id"] === null || $book["approval_status"] === "approved"): ?>

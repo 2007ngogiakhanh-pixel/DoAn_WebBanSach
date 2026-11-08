@@ -55,13 +55,14 @@ if ($pendingImage !== null && $pendingImage !== "") {
 }
 
 mysqli_begin_transaction($conn);
+$categoriesApplied = approve_pending_book_categories($conn, $bookId);
 if ($pendingImage !== null && $pendingImage !== "") {
     $update = mysqli_prepare($conn, "UPDATE books SET image = pending_image, pending_image = NULL, approval_status = 'approved' WHERE id = ? AND approval_status = 'pending'");
 } else {
     $update = mysqli_prepare($conn, "UPDATE books SET approval_status = 'approved' WHERE id = ? AND approval_status = 'pending'");
 }
 mysqli_stmt_bind_param($update, "i", $bookId);
-$updated = mysqli_stmt_execute($update) && mysqli_stmt_affected_rows($update) === 1;
+$updated = $categoriesApplied && mysqli_stmt_execute($update) && mysqli_stmt_affected_rows($update) === 1;
 if (!$updated || !mysqli_commit($conn)) {
     mysqli_rollback($conn);
     if ($imageMoved) {

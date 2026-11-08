@@ -5,9 +5,8 @@ require "db.php";
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-$result = mysqli_query($conn, "SELECT b.*, c.name AS category_name 
+$result = mysqli_query($conn, "SELECT b.*, (SELECT GROUP_CONCAT(c2.name ORDER BY c2.name SEPARATOR ', ') FROM book_categories bc JOIN categories c2 ON c2.id = bc.category_id WHERE bc.book_id = b.id) AS category_names
                                FROM books b 
-                               JOIN categories c ON b.category_id = c.id 
                                WHERE b.id = $id
                                  AND (b.seller_id IS NULL OR b.approval_status = 'approved')");
 
@@ -46,7 +45,7 @@ $book = mysqli_fetch_assoc($result);
             <div class="col-md-7">
                 <h2><?= htmlspecialchars($book['title']) ?></h2>
                 <p class="text-muted">Tác giả: <strong><?= htmlspecialchars($book['author']) ?></strong></p>
-                <p class="text-muted">Thể loại: <span class="badge bg-secondary"><?= htmlspecialchars($book['category_name']) ?></span></p>
+                <p class="text-muted">Thể loại: <span class="badge bg-secondary"><?= htmlspecialchars($book['category_names'] ?? "") ?></span></p>
                 <h3 class="text-danger my-3"><?= number_format($book['price'], 0, ',', '.') ?> đ</h3>
 
                 <p class="mt-4"><strong>Mô tả nội dung:</strong></p>

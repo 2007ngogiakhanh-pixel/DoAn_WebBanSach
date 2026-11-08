@@ -8,15 +8,14 @@ if (!isset($_SESSION["admin"])) {
 }
 require "../db.php";
 
-$sql = "SELECT b.*, c.name AS category_name, u.full_name AS seller_name, u.email AS seller_email
-        FROM books b 
-        LEFT JOIN categories c ON b.category_id = c.id
+$sql = "SELECT b.*, (SELECT GROUP_CONCAT(c2.name ORDER BY c2.name SEPARATOR ', ') FROM book_categories bc2 JOIN categories c2 ON c2.id = bc2.category_id WHERE bc2.book_id = b.id) AS category_names, u.full_name AS seller_name, u.email AS seller_email
+        FROM books b
         LEFT JOIN users u ON b.seller_id = u.id
         WHERE b.seller_id IS NULL OR b.approval_status = 'approved'
         ORDER BY b.id DESC";
 $result = mysqli_query($conn, $sql);
 $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at FROM users WHERE role = 'seller' AND status = 'pending' ORDER BY created_at ASC");
-$pendingBooks = mysqli_query($conn, "SELECT b.id, b.title, b.author, b.price, b.image, b.pending_image, b.description, c.name AS category_name, u.full_name AS seller_name, u.email AS seller_email FROM books b JOIN users u ON b.seller_id = u.id LEFT JOIN categories c ON b.category_id = c.id WHERE b.approval_status = 'pending' ORDER BY b.id ASC");
+$pendingBooks = mysqli_query($conn, "SELECT b.id, b.title, b.author, b.price, b.image, b.pending_image, b.description, (SELECT GROUP_CONCAT(c2.name ORDER BY c2.name SEPARATOR ', ') FROM book_categories bc2 JOIN categories c2 ON c2.id = bc2.category_id WHERE bc2.book_id = b.id) AS category_names, (SELECT GROUP_CONCAT(bpc.category_name ORDER BY bpc.category_name SEPARATOR ', ') FROM book_pending_categories bpc WHERE bpc.book_id = b.id) AS new_category_names, u.full_name AS seller_name, u.email AS seller_email FROM books b JOIN users u ON b.seller_id = u.id WHERE b.approval_status = 'pending' ORDER BY b.id ASC");
 $accounts = mysqli_query($conn, "SELECT id, full_name, email, role, status, created_at FROM users ORDER BY created_at DESC");
 $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
 ?>
@@ -59,7 +58,10 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
                                 <td><img src="../book_image.php?id=<?= (int)$book["id"] ?>" alt="" style="height:90px;max-width:70px;object-fit:cover"></td>
                                 <td><strong><?= htmlspecialchars($book["title"]) ?></strong><br><span class="text-muted"><?= htmlspecialchars($book["author"]) ?></span></td>
                                 <td><?= htmlspecialchars($book["seller_name"]) ?><br><a href="mailto:<?= htmlspecialchars($book["seller_email"]) ?>"><?= htmlspecialchars($book["seller_email"]) ?></a></td>
-                                <td><?= htmlspecialchars($book["category_name"] ?? "") ?></td>
+                                <td>
+                                    <?= htmlspecialchars($book["category_names"] ?? "") ?>
+                                    <?php if (!empty($book["new_category_names"])): ?><br><small class="text-primary">Thể loại đề xuất: <?= htmlspecialchars($book["new_category_names"]) ?></small><?php endif; ?>
+                                </td>
                                 <td><?= number_format($book["price"], 0, ",", ".") ?> đ</td>
                                 <td><?= nl2br(htmlspecialchars($book["description"] ?? "")) ?></td>
                                 <td class="text-nowrap">
@@ -152,7 +154,7 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
                         <td class="fw-bold"><?= htmlspecialchars($row['title']) ?></td>
                         <td><?= htmlspecialchars($row['seller_name'] ?? "Admin") ?><?php if (!empty($row["seller_email"])): ?><br><small><?= htmlspecialchars($row["seller_email"]) ?></small><?php endif; ?></td>
                         <td><?= htmlspecialchars($row['author']) ?></td>
-                        <td><span class="badge bg-info text-dark"><?= htmlspecialchars($row['category_name']) ?></span></td>
+                        <td><span class="badge bg-info text-dark"><?= htmlspecialchars($row['category_names'] ?? "") ?></span></td>
                         <td class="text-danger fw-bold"><?= number_format($row['price'], 0, ',', '.') ?> đ</td>
                         <td>
                             <a href="book_edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm me-1">Sửa</a>

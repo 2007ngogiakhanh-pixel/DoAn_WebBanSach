@@ -22,7 +22,33 @@ $title = $book["title"];
 $author = $book["author"];
 $description = $book["description"] ?? "";
 $price = (int)$book["price"];
-$categoryId = (int)$book["category_id"];
+$categoryResultStmt = mysqli_prepare($conn, "SELECT category_id FROM book_categories WHERE book_id = ?");
+$categoryIds = [];
+if ($categoryResultStmt) {
+    mysqli_stmt_bind_param($categoryResultStmt, "i", $id);
+    mysqli_stmt_execute($categoryResultStmt);
+    $categoryResult = mysqli_stmt_get_result($categoryResultStmt);
+} else {
+    $categoryResult = false;
+}
+while ($categoryResult && ($categoryRow = mysqli_fetch_assoc($categoryResult))) {
+    $categoryIds[] = (int)$categoryRow["category_id"];
+}
+$pendingCategoryInput = "";
+$pendingCategoryStmt = mysqli_prepare($conn, "SELECT category_name FROM book_pending_categories WHERE book_id = ?");
+if ($pendingCategoryStmt) {
+    mysqli_stmt_bind_param($pendingCategoryStmt, "i", $id);
+    mysqli_stmt_execute($pendingCategoryStmt);
+    $pendingCategoryResult = mysqli_stmt_get_result($pendingCategoryStmt);
+    $pendingNames = [];
+    while ($pendingCategoryRow = mysqli_fetch_assoc($pendingCategoryResult)) {
+        $pendingNames[] = $pendingCategoryRow["category_name"];
+    }
+    $pendingCategoryInput = implode(", ", $pendingNames);
+}
+if ($categoryIds === [] && $pendingCategoryInput === "") {
+    $categoryIds[] = (int)$book["category_id"];
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
@@ -34,29 +60,48 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $author = trim($_POST["author"] ?? "");
     $description = trim($_POST["description"] ?? "");
     $price = (int)($_POST["price"] ?? 0);
-    $categoryId = (int)($_POST["category_id"] ?? 0);
-    $categoryCheck = mysqli_prepare($conn, "SELECT id FROM categories WHERE id = ?");
-    mysqli_stmt_bind_param($categoryCheck, "i", $categoryId);
-    mysqli_stmt_execute($categoryCheck);
-    $validCategory = mysqli_stmt_get_result($categoryCheck);
+    $categoryInput = $_POST["new_categories"] ?? "";
+    $pendingCategoryInput = is_string($categoryInput) ? $categoryInput : "";
+    $pendingCategoryNames = [];
+    $validCategories = resolve_book_category_choices(
+        $conn,
+        $_POST["category_ids"] ?? [],
+        $categoryInput,
+        $categoryIds,
+        $pendingCategoryNames,
+        $error
+    );
 
-    if ($title === "" || $author === "" || $price <= 0 || mysqli_num_rows($validCategory) === 0) {
-        $error = "Vui lòng nhập tên sách, tác giả, giá hợp lệ và chọn thể loại.";
-    } else {
+    if ($validCategories && ($title === "" || $author === "" || $price <= 0)) {
+        $error = "Vui lòng nhập tên sách, tác giả và giá hợp lệ.";
+    } elseif ($validCategories) {
         $imageError = "";
         $newImage = save_book_image($_FILES["image"] ?? [], $imageError);
         if ($imageError !== "") {
             $error = $imageError;
         } else {
             $pendingImage = $newImage ?? $book["pending_image"];
-            $update = mysqli_prepare($conn, "UPDATE books SET title = ?, author = ?, price = ?, pending_image = ?, description = ?, category_id = ?, approval_status = 'pending' WHERE id = ? AND seller_id = ?");
-            mysqli_stmt_bind_param($update, "ssissiii", $title, $author, $price, $pendingImage, $description, $categoryId, $id, $sellerId);
-            if (mysqli_stmt_execute($update)) {
-                if ($newImage !== null && $book["pending_image"] !== null && $book["pending_image"] !== $newImage) {
-                    delete_pending_book_image($book["pending_image"]);
+            if (mysqli_begin_transaction($conn)) {
+                $update = mysqli_prepare($conn, "UPDATE books SET title = ?, author = ?, price = ?, pending_image = ?, description = ?, approval_status = 'pending' WHERE id = ? AND seller_id = ?");
+                $saved = $update !== false;
+                if ($saved) {
+                    mysqli_stmt_bind_param($update, "ssissii", $title, $author, $price, $pendingImage, $description, $id, $sellerId);
+                    $saved = mysqli_stmt_execute($update);
                 }
-                header("Location: index.php");
-                exit;
+                if ($saved) {
+                    $saved = replace_book_categories($conn, $id, $categoryIds);
+                }
+                if ($saved) {
+                    $saved = replace_pending_book_categories($conn, $id, $pendingCategoryNames);
+                }
+                if ($saved && mysqli_commit($conn)) {
+                    if ($newImage !== null && $book["pending_image"] !== null && $book["pending_image"] !== $newImage) {
+                        delete_pending_book_image($book["pending_image"]);
+                    }
+                    header("Location: index.php");
+                    exit;
+                }
+                mysqli_rollback($conn);
             }
             delete_pending_book_image($newImage);
             $error = "Không thể cập nhật sách. Vui lòng thử lại.";
@@ -84,12 +129,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="mb-3"><label class="form-label">Tên sách</label><input class="form-control" name="title" value="<?= htmlspecialchars($title) ?>" required></div>
                 <div class="mb-3"><label class="form-label">Tác giả</label><input class="form-control" name="author" value="<?= htmlspecialchars($author) ?>" required></div>
                 <div class="mb-3">
-                    <label class="form-label">Thể loại</label>
-                    <select class="form-select" name="category_id" required>
+                    <label class="form-label">Thể loại (chọn một hoặc nhiều)</label>
+                    <div class="border rounded p-3">
                         <?php while ($category = mysqli_fetch_assoc($categories)): ?>
-                            <option value="<?= (int)$category["id"] ?>" <?= $categoryId === (int)$category["id"] ? "selected" : "" ?>><?= htmlspecialchars($category["name"]) ?></option>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="category_ids[]" value="<?= (int)$category["id"] ?>" id="category-<?= (int)$category["id"] ?>" <?= in_array((int)$category["id"], $categoryIds, true) ? "checked" : "" ?>>
+                                <label class="form-check-label" for="category-<?= (int)$category["id"] ?>"><?= htmlspecialchars($category["name"]) ?></label>
+                            </div>
                         <?php endwhile; ?>
-                    </select>
+                    </div>
+                    <label class="form-label mt-3" for="new-categories">Thêm thể loại chưa có</label>
+                    <input class="form-control" id="new-categories" name="new_categories" value="<?= htmlspecialchars($pendingCategoryInput) ?>" maxlength="500" placeholder="Ví dụ: Truyện trinh thám, Lịch sử">
+                    <div class="form-text">Nhập tên thể loại mới, cách nhau bằng dấu phẩy. Chữ cái đầu sẽ tự viết hoa. Thể loại mới chỉ được thêm vào danh sách sau khi admin duyệt sách.</div>
                 </div>
                 <div class="mb-3"><label class="form-label">Giá bán (đ)</label><input class="form-control" type="number" min="1" name="price" value="<?= $price ?>" required></div>
                 <div class="mb-3"><label class="form-label">Ảnh bìa mới (không chọn nếu giữ ảnh hiện tại; ảnh mới cần admin duyệt)</label><input class="form-control" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
