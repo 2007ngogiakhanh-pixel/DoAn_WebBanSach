@@ -66,6 +66,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $saved = replace_pending_book_categories($conn, $bookId, $pendingCategoryNames);
                 }
                 if ($saved && mysqli_commit($conn)) {
+                    $_SESSION["seller_notice"] = "Đã lưu sách. Sách đang chờ admin duyệt trước khi hiển thị trên cửa hàng.";
                     header("Location: index.php");
                     exit;
                 }
@@ -97,17 +98,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="mb-3"><label class="form-label">Tác giả</label><input class="form-control" name="author" value="<?= htmlspecialchars($author) ?>" required></div>
                 <div class="mb-3">
                     <label class="form-label">Thể loại (chọn một hoặc nhiều)</label>
-                    <div class="border rounded p-3">
+                    <input class="form-control form-control-sm mb-2 category-search" type="search" placeholder="Tìm thể loại..." aria-label="Tìm thể loại">
+                    <div class="border rounded p-3 category-list" style="max-height:180px;overflow-y:auto;overscroll-behavior:contain">
                         <?php while ($category = mysqli_fetch_assoc($categories)): ?>
-                            <div class="form-check">
+                            <div class="form-check category-option">
                                 <input class="form-check-input" type="checkbox" name="category_ids[]" value="<?= (int)$category["id"] ?>" id="category-<?= (int)$category["id"] ?>" <?= in_array((int)$category["id"], $categoryIds, true) ? "checked" : "" ?>>
                                 <label class="form-check-label" for="category-<?= (int)$category["id"] ?>"><?= htmlspecialchars($category["name"]) ?></label>
                             </div>
                         <?php endwhile; ?>
+                        <div class="text-muted small category-empty" hidden>Không tìm thấy thể loại.</div>
                     </div>
-                    <label class="form-label mt-3" for="new-categories">Thêm thể loại chưa có</label>
-                    <input class="form-control" id="new-categories" name="new_categories" value="<?= htmlspecialchars($newCategoryInput) ?>" maxlength="500" placeholder="Ví dụ: Truyện trinh thám, Lịch sử">
-                    <div class="form-text">Nhập tên thể loại mới, cách nhau bằng dấu phẩy. Chữ cái đầu sẽ tự viết hoa. Thể loại mới chỉ được thêm vào danh sách sau khi admin duyệt sách.</div>
+                    <button class="btn btn-outline-success btn-sm mt-2" id="toggle-new-category" type="button" aria-expanded="<?= $newCategoryInput !== "" ? "true" : "false" ?>" aria-controls="new-category-panel">+ Thêm thể loại mới</button>
+                    <div class="mt-2" id="new-category-panel" <?= $newCategoryInput !== "" ? "" : "hidden" ?>>
+                        <label class="form-label" for="new-categories">Tên thể loại mới</label>
+                        <input class="form-control" id="new-categories" name="new_categories" value="<?= htmlspecialchars($newCategoryInput) ?>" maxlength="500" placeholder="Ví dụ: Truyện trinh thám, Lịch sử">
+                        <div class="form-text">Có thể nhập nhiều thể loại, cách nhau bằng dấu phẩy. Chữ cái đầu sẽ tự viết hoa; thể loại mới chỉ được thêm sau khi admin duyệt sách.</div>
+                    </div>
                 </div>
                 <div class="mb-3"><label class="form-label">Giá bán (đ)</label><input class="form-control" type="number" min="1" name="price" value="<?= $price ?: "" ?>" required></div>
                 <div class="mb-3"><label class="form-label">Ảnh bìa (JPG, PNG, WebP; tối đa 5 MB)</label><input class="form-control" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
@@ -119,5 +125,32 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
     </div>
 </main>
+<script>
+document.querySelectorAll(".category-search").forEach((search) => {
+    const list = search.nextElementSibling;
+    const options = list.querySelectorAll(".category-option");
+    const emptyMessage = list.querySelector(".category-empty");
+    search.addEventListener("input", () => {
+        const query = search.value.trim().toLocaleLowerCase("vi");
+        let visibleCount = 0;
+        options.forEach((option) => {
+            const matches = option.textContent.toLocaleLowerCase("vi").includes(query);
+            option.hidden = !matches;
+            visibleCount += matches ? 1 : 0;
+        });
+        emptyMessage.hidden = visibleCount > 0;
+    });
+});
+const newCategoryToggle = document.getElementById("toggle-new-category");
+const newCategoryPanel = document.getElementById("new-category-panel");
+newCategoryToggle.addEventListener("click", () => {
+    const isHidden = newCategoryPanel.hidden;
+    newCategoryPanel.hidden = !isHidden;
+    newCategoryToggle.setAttribute("aria-expanded", String(isHidden));
+    if (isHidden) {
+        document.getElementById("new-categories").focus();
+    }
+});
+</script>
 </body>
 </html>

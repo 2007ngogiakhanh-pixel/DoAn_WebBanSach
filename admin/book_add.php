@@ -5,16 +5,31 @@ if (!isset($_SESSION["admin"])) { header("Location: login.php"); exit; }
 require "../db.php";
 require "../book_helpers.php";
 
-$categories = mysqli_query($conn, "SELECT * FROM categories");
+$categories = mysqli_query($conn, "SELECT * FROM categories ORDER BY name");
 $loi = "";
 $categoryIds = [];
+$newCategoryInput = "";
+$title = $author = $description = "";
+$price = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $title       = trim($_POST["title"]);
-    $author      = trim($_POST["author"]);
-    $price       = (int)$_POST["price"];
+    $title = trim($_POST["title"] ?? "");
+    $author = trim($_POST["author"] ?? "");
+    $price = (int)($_POST["price"] ?? 0);
+    $description = trim($_POST["description"] ?? "");
+    $categoryInput = $_POST["new_categories"] ?? "";
+    $newCategoryInput = is_string($categoryInput) ? $categoryInput : "";
     $categoryIds = normalize_book_category_ids($_POST["category_ids"] ?? []);
-    $description = trim($_POST["description"]);
+    $pendingCategoryNames = [];
+    $categoryError = "";
+    $validCategories = resolve_book_category_choices(
+        $conn,
+        $_POST["category_ids"] ?? [],
+        $categoryInput,
+        $categoryIds,
+        $pendingCategoryNames,
+        $categoryError
+    );
 
     // Xử lý upload hình ảnh
     $image_name = "default.jpg";
@@ -24,19 +39,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         move_uploaded_file($_FILES["image"]["tmp_name"], "../uploads/" . $image_name);
     }
 
-    if ($title == "" || $price <= 0 || !book_categories_exist($conn, $categoryIds)) {
+    if (!$validCategories) {
+        $loi = $categoryError;
+    } elseif ($title == "" || $price <= 0) {
         $loi = "Vui lòng điền tiêu đề, giá hợp lệ và chọn ít nhất một thể loại.";
     } else {
         if (mysqli_begin_transaction($conn)) {
-            $category_id = $categoryIds[0];
+            $saved = create_book_categories($conn, $pendingCategoryNames, $categoryIds);
+            $category_id = $categoryIds[0] ?? 0;
             $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, description, category_id) VALUES (?, ?, ?, ?, ?, ?)");
-            $saved = $stmt !== false;
+            $saved = $saved && $stmt !== false && $category_id > 0;
             if ($saved) {
                 mysqli_stmt_bind_param($stmt, "ssissi", $title, $author, $price, $image_name, $description, $category_id);
                 $saved = mysqli_stmt_execute($stmt);
             }
             if ($saved) {
-                $saved = replace_book_categories($conn, mysqli_insert_id($conn), $categoryIds);
+                $bookId = (int)mysqli_insert_id($conn);
+                $saved = replace_book_categories($conn, $bookId, $categoryIds);
             }
             if ($saved && mysqli_commit($conn)) {
                 header("Location: index.php");
@@ -67,29 +86,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <form method="post" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tên sách (*):</label>
-                        <input type="text" name="title" class="form-control" required>
+                        <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($title) ?>" required>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Tác giả:</label>
-                            <input type="text" name="author" class="form-control" required>
+                            <input type="text" name="author" class="form-control" value="<?= htmlspecialchars($author) ?>" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Thể loại (chọn một hoặc nhiều):</label>
-                            <div class="border rounded p-3">
+                            <input class="form-control form-control-sm mb-2 category-search" type="search" placeholder="Tìm thể loại..." aria-label="Tìm thể loại">
+                            <div class="border rounded p-3 category-list" style="max-height:180px;overflow-y:auto;overscroll-behavior:contain">
                                 <?php while ($cat = mysqli_fetch_assoc($categories)): ?>
-                                    <div class="form-check">
+                                    <div class="form-check category-option">
                                         <input class="form-check-input" type="checkbox" name="category_ids[]" value="<?= (int)$cat['id'] ?>" id="category-<?= (int)$cat['id'] ?>" <?= in_array((int)$cat['id'], $categoryIds, true) ? "checked" : "" ?>>
                                         <label class="form-check-label" for="category-<?= (int)$cat['id'] ?>"><?= htmlspecialchars($cat['name']) ?></label>
                                     </div>
                                 <?php endwhile; ?>
+                                <div class="text-muted small category-empty" hidden>Không tìm thấy thể loại.</div>
+                            </div>
+                            <button class="btn btn-outline-success btn-sm mt-2" id="toggle-new-category" type="button" aria-expanded="<?= $newCategoryInput !== "" ? "true" : "false" ?>" aria-controls="new-category-panel">+ Thêm thể loại mới</button>
+                            <div class="mt-2" id="new-category-panel" <?= $newCategoryInput !== "" ? "" : "hidden" ?>>
+                                <label class="form-label" for="new-categories">Tên thể loại mới</label>
+                                <input class="form-control" id="new-categories" name="new_categories" value="<?= htmlspecialchars($newCategoryInput) ?>" maxlength="500" placeholder="Ví dụ: Truyện trinh thám, Lịch sử">
+                                <div class="form-text">Thể loại mới do admin thêm sẽ có hiệu lực ngay. Có thể nhập nhiều thể loại, cách nhau bằng dấu phẩy.</div>
                             </div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Giá bán (đ):</label>
-                            <input type="number" name="price" class="form-control" required min="1000">
+                            <input type="number" name="price" class="form-control" value="<?= htmlspecialchars((string)$price) ?>" required min="1000">
                         </div>
                         <div class="col-md-6 mb-3">
                             <!-- 📌 VỊ TRÍ UPLOAD HÌNH ẢNH SÁCH MỚI -->
@@ -111,5 +138,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
     </div>
+    <script>
+    document.querySelectorAll(".category-search").forEach((search) => {
+        const list = search.nextElementSibling;
+        const options = list.querySelectorAll(".category-option");
+        const emptyMessage = list.querySelector(".category-empty");
+        search.addEventListener("input", () => {
+            const query = search.value.trim().toLocaleLowerCase("vi");
+            let visibleCount = 0;
+            options.forEach((option) => {
+                const matches = option.textContent.toLocaleLowerCase("vi").includes(query);
+                option.hidden = !matches;
+                visibleCount += matches ? 1 : 0;
+            });
+            emptyMessage.hidden = visibleCount > 0;
+        });
+    });
+    const newCategoryToggle = document.getElementById("toggle-new-category");
+    const newCategoryPanel = document.getElementById("new-category-panel");
+    newCategoryToggle.addEventListener("click", () => {
+        const isHidden = newCategoryPanel.hidden;
+        newCategoryPanel.hidden = !isHidden;
+        newCategoryToggle.setAttribute("aria-expanded", String(isHidden));
+        if (isHidden) document.getElementById("new-categories").focus();
+    });
+    </script>
 </body>
 </html>

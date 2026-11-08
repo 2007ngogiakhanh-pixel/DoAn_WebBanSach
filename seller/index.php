@@ -9,6 +9,8 @@ $stmt = mysqli_prepare($conn, "SELECT b.*, (SELECT GROUP_CONCAT(c2.name ORDER BY
 mysqli_stmt_bind_param($stmt, "i", $sellerId);
 mysqli_stmt_execute($stmt);
 $books = mysqli_stmt_get_result($stmt);
+$notice = $_SESSION["seller_notice"] ?? "";
+unset($_SESSION["seller_notice"]);
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -30,6 +32,7 @@ $books = mysqli_stmt_get_result($stmt);
         </div>
     </nav>
     <main class="container my-4">
+        <?php if ($notice !== ""): ?><div class="alert alert-success"><?= htmlspecialchars($notice) ?></div><?php endif; ?>
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3>Sách của tôi</h3>
             <a class="btn btn-success" href="book_add.php">+ Thêm sách</a>

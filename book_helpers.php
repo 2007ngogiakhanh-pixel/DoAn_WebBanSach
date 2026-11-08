@@ -205,6 +205,36 @@ function resolve_book_category_choices(mysqli $conn, $selectedInput, $newInput, 
     return true;
 }
 
+function create_book_categories(mysqli $conn, array $categoryNames, array &$categoryIds): bool
+{
+    $lookup = mysqli_prepare($conn, "SELECT id FROM categories WHERE name = ? LIMIT 1");
+    $create = mysqli_prepare($conn, "INSERT INTO categories (name) VALUES (?)");
+    if (!$lookup || !$create) {
+        return false;
+    }
+
+    foreach ($categoryNames as $categoryName) {
+        mysqli_stmt_bind_param($lookup, "s", $categoryName);
+        if (!mysqli_stmt_execute($lookup)) {
+            return false;
+        }
+        $category = mysqli_fetch_assoc(mysqli_stmt_get_result($lookup));
+        if ($category) {
+            $categoryIds[] = (int)$category["id"];
+            continue;
+        }
+
+        mysqli_stmt_bind_param($create, "s", $categoryName);
+        if (!mysqli_stmt_execute($create)) {
+            return false;
+        }
+        $categoryIds[] = (int)mysqli_insert_id($conn);
+    }
+
+    $categoryIds = array_values(array_unique($categoryIds));
+    return true;
+}
+
 function replace_pending_book_categories(mysqli $conn, int $bookId, array $categoryNames): bool
 {
     $delete = mysqli_prepare($conn, "DELETE FROM book_pending_categories WHERE book_id = ?");
