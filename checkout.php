@@ -1,15 +1,36 @@
 <?php
 // checkout.php - Đặt hàng và lưu CSDL
 session_start();
+require "auth.php";
 require "db.php";
 
+if (($_SESSION["user_role"] ?? null) !== "customer") {
+    if (isset($_SESSION["user_id"])) {
+        header("Location: seller/index.php");
+    } else {
+        header("Location: login.php?next=checkout");
+    }
+    exit;
+}
+
 $cart = $_SESSION["cart"] ?? [];
-if (count($cart) == 0) {
+$validCart = [];
+if (is_array($cart)) {
+    foreach ($cart as $bookId => $quantity) {
+        $bookId = (int)$bookId;
+        $quantity = (int)$quantity;
+        if ($bookId > 0 && $quantity > 0) {
+            $validCart[$bookId] = $quantity;
+        }
+    }
+}
+$cart = $validCart;
+if (count($cart) === 0) {
     header("Location: cart.php");
     exit;
 }
 
-$ids = implode(",", array_keys($cart));
+$ids = implode(",", array_map("intval", array_keys($cart)));
 $result = mysqli_query($conn, "SELECT id, price FROM books WHERE id IN ($ids)");
 
 $giaBook = [];
@@ -20,32 +41,45 @@ while ($book = mysqli_fetch_assoc($result)) {
 }
 
 $loi = "";
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $hoten     = trim($_POST["hoten"]);
-    $dienthoai = trim($_POST["dienthoai"]);
-    $diachi    = trim($_POST["diachi"]);
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token()) {
+        http_response_code(403);
+        exit("Yêu cầu không hợp lệ. Vui lòng tải lại trang và thử lại.");
+    }
+    $hoten     = trim($_POST["hoten"] ?? "");
+    $dienthoai = trim($_POST["dienthoai"] ?? "");
+    $diachi    = trim($_POST["diachi"] ?? "");
 
     if ($hoten == "" || $dienthoai == "" || $diachi == "") {
         $loi = "Vui lòng nhập đầy đủ thông tin giao hàng!";
+    } elseif (count($giaBook) !== count($cart)) {
+        $loi = "Một số sách trong giỏ không còn tồn tại. Vui lòng kiểm tra lại giỏ hàng.";
     } else {
-        // 1. Lưu bảng orders
-        $stmt = mysqli_prepare($conn, "INSERT INTO orders (customer_name, phone, address, total_price) VALUES (?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, "sssi", $hoten, $dienthoai, $diachi, $tong);
-        mysqli_stmt_execute($stmt);
-        $orderId = mysqli_insert_id($conn);
-
-        // 2. Lưu bảng order_details
-        $stmt = mysqli_prepare($conn, "INSERT INTO order_details (order_id, book_id, quantity, price) VALUES (?, ?, ?, ?)");
-        foreach ($giaBook as $bId => $price) {
-            $soluong = $cart[$bId];
-            mysqli_stmt_bind_param($stmt, "iiii", $orderId, $bId, $soluong, $price);
-            mysqli_stmt_execute($stmt);
+        mysqli_begin_transaction($conn);
+        $customerId = (int)$_SESSION["user_id"];
+        $stmt = mysqli_prepare($conn, "INSERT INTO orders (customer_id, customer_name, phone, address, total_price) VALUES (?, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, "isssi", $customerId, $hoten, $dienthoai, $diachi, $tong);
+        if (mysqli_stmt_execute($stmt)) {
+            $orderId = mysqli_insert_id($conn);
+            $detailStmt = mysqli_prepare($conn, "INSERT INTO order_details (order_id, book_id, quantity, price) VALUES (?, ?, ?, ?)");
+            $detailsSaved = true;
+            foreach ($giaBook as $bId => $price) {
+                $soluong = $cart[$bId];
+                mysqli_stmt_bind_param($detailStmt, "iiii", $orderId, $bId, $soluong, $price);
+                if (!mysqli_stmt_execute($detailStmt)) {
+                    $detailsSaved = false;
+                    break;
+                }
+            }
+            if ($detailsSaved && mysqli_commit($conn)) {
+                unset($_SESSION["cart"]);
+                header("Location: success.php?id=$orderId");
+                exit;
+            }
         }
 
-        // 3. Xóa giỏ hàng & chuyển trang thành công
-        unset($_SESSION["cart"]);
-        header("Location: success.php?id=$orderId");
-        exit;
+        mysqli_rollback($conn);
+        $loi = "Không thể lưu đơn hàng. Vui lòng thử lại.";
     }
 }
 ?>
@@ -73,6 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <?php endif; ?>
 
                 <form method="post">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <div class="mb-3">
                         <label class="form-label font-weight-bold">Họ và tên người nhận:</label>
                         <input type="text" name="hoten" class="form-control" required placeholder="Nguyễn Văn A">

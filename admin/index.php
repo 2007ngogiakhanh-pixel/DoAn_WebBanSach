@@ -1,6 +1,7 @@
 <?php
 // admin/index.php - Quản lý sách
 session_start();
+require "../auth.php";
 if (!isset($_SESSION["admin"])) {
     header("Location: login.php");
     exit;
@@ -12,6 +13,7 @@ $sql = "SELECT b.*, c.name AS category_name
         JOIN categories c ON b.category_id = c.id 
         ORDER BY b.id DESC";
 $result = mysqli_query($conn, $sql);
+$pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at FROM users WHERE role = 'seller' AND status = 'pending' ORDER BY created_at ASC");
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -34,6 +36,42 @@ $result = mysqli_query($conn, $sql);
     </nav>
 
     <div class="container my-4">
+        <section class="mb-4">
+            <h3>Yêu cầu tài khoản người bán</h3>
+            <?php if (mysqli_num_rows($pendingSellers) === 0): ?>
+                <p class="text-muted">Không có yêu cầu đang chờ duyệt.</p>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle bg-white">
+                        <thead class="table-secondary"><tr><th>Họ tên</th><th>Email</th><th>Ngày đăng ký</th><th>Thao tác</th></tr></thead>
+                        <tbody>
+                        <?php while ($seller = mysqli_fetch_assoc($pendingSellers)): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($seller["full_name"]) ?></td>
+                                <td><?= htmlspecialchars($seller["email"]) ?></td>
+                                <td><?= htmlspecialchars($seller["created_at"]) ?></td>
+                                <td class="text-nowrap">
+                                    <form class="d-inline" method="post" action="seller_status.php">
+                                        <input type="hidden" name="id" value="<?= (int)$seller["id"] ?>">
+                                        <input type="hidden" name="action" value="approve">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                        <button class="btn btn-success btn-sm" type="submit">Duyệt</button>
+                                    </form>
+                                    <form class="d-inline" method="post" action="seller_status.php" onsubmit="return confirm('Từ chối yêu cầu này?')">
+                                        <input type="hidden" name="id" value="<?= (int)$seller["id"] ?>">
+                                        <input type="hidden" name="action" value="reject">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                        <button class="btn btn-outline-danger btn-sm" type="submit">Từ chối</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </section>
+
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3>Danh Sách Sách</h3>
             <a href="book_add.php" class="btn btn-success">+ Thêm Sách Mới</a>

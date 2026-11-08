@@ -20,7 +20,20 @@ $soLuongGio = array_sum($_SESSION["cart"] ?? []);
                     <a class="nav-link active" href="index.php">Trang chủ</a>
                 </li>
             </ul>
-            <div class="d-flex">
+            <div class="d-flex align-items-center">
+                <?php if (isset($_SESSION["user_id"])): ?>
+                    <span class="navbar-text text-white me-3">
+                        <?= htmlspecialchars($_SESSION["user_name"]) ?>
+                        (<?= ($_SESSION["user_role"] ?? "") === "seller" ? "Người bán" : "Khách hàng" ?>)
+                    </span>
+                    <?php if (($_SESSION["user_role"] ?? "") === "seller"): ?>
+                        <a href="seller/index.php" class="btn btn-outline-info me-2">Khu vực người bán</a>
+                    <?php endif; ?>
+                    <a href="logout.php" class="btn btn-outline-light me-2">Đăng xuất</a>
+                <?php else: ?>
+                    <a href="login.php" class="btn btn-outline-light me-2">Đăng nhập</a>
+                    <a href="register.php" class="btn btn-warning me-2">Đăng ký</a>
+                <?php endif; ?>
                 <a href="cart.php" class="btn btn-outline-light position-relative">
                     🛒 Giỏ hàng
                     <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
