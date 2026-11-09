@@ -3,15 +3,7 @@
 session_start();
 require "auth.php";
 require "db.php";
-
-if (($_SESSION["user_role"] ?? null) !== "customer") {
-    if (isset($_SESSION["user_id"])) {
-        header("Location: seller/index.php");
-    } else {
-        header("Location: login.php?next=checkout");
-    }
-    exit;
-}
+require_role("customer");
 
 $cart = $_SESSION["cart"] ?? [];
 $validCart = [];
@@ -31,7 +23,7 @@ if (count($cart) === 0) {
 }
 
 $ids = implode(",", array_map("intval", array_keys($cart)));
-$result = mysqli_query($conn, "SELECT id, price FROM books WHERE id IN ($ids) AND (seller_id IS NULL OR approval_status = 'approved')");
+$result = mysqli_query($conn, "SELECT id, price FROM books WHERE id IN ($ids) AND is_available = 1 AND (seller_id IS NULL OR approval_status = 'approved')");
 
 $giaBook = [];
 $tong    = 0;
@@ -53,13 +45,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($hoten == "" || $dienthoai == "" || $diachi == "") {
         $loi = "Vui lòng nhập đầy đủ thông tin giao hàng!";
     } elseif (count($giaBook) !== count($cart)) {
-        $loi = "Một số sách trong giỏ không còn tồn tại. Vui lòng kiểm tra lại giỏ hàng.";
+        $loi = "Một số sách đã hết hàng hoặc không còn bán. Vui lòng cập nhật lại giỏ hàng.";
     } else {
         mysqli_begin_transaction($conn);
         $customerId = (int)$_SESSION["user_id"];
-        $stmt = mysqli_prepare($conn, "INSERT INTO orders (customer_id, customer_name, phone, address, total_price) VALUES (?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($stmt, "isssi", $customerId, $hoten, $dienthoai, $diachi, $tong);
-        if (mysqli_stmt_execute($stmt)) {
+        $stmt = mysqli_prepare($conn, "INSERT INTO orders (order_code, customer_id, customer_name, phone, address, total_price) VALUES (?, ?, ?, ?, ?, ?)");
+        $orderSaved = false;
+        for ($attempt = 0; $attempt < 10 && !$orderSaved; $attempt++) {
+            $orderCode = (string)random_int(1000000000, 9999999999);
+            mysqli_stmt_bind_param($stmt, "sisssi", $orderCode, $customerId, $hoten, $dienthoai, $diachi, $tong);
+            $orderSaved = mysqli_stmt_execute($stmt);
+            if (!$orderSaved && mysqli_errno($conn) !== 1062) {
+                break;
+            }
+        }
+        if ($orderSaved) {
             $orderId = mysqli_insert_id($conn);
             $detailStmt = mysqli_prepare($conn, "INSERT INTO order_details (order_id, book_id, quantity, price) VALUES (?, ?, ?, ?)");
             $detailsSaved = true;
@@ -79,7 +79,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         mysqli_rollback($conn);
-        $loi = "Không thể lưu đơn hàng. Vui lòng thử lại.";
+        $loi = count($giaBook) !== count($cart)
+            ? "Một số sách đã hết hàng hoặc không còn bán. Vui lòng cập nhật lại giỏ hàng."
+            : "Không thể lưu đơn hàng. Vui lòng thử lại.";
     }
 }
 ?>

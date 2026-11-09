@@ -1,8 +1,8 @@
 <?php
 session_start();
 require "../auth.php";
+require_once "../db.php";
 require_role("seller");
-require "../db.php";
 require "../book_helpers.php";
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {

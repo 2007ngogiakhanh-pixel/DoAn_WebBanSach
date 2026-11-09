@@ -47,6 +47,7 @@ $book = mysqli_fetch_assoc($result);
                 <p class="text-muted">Tác giả: <strong><?= htmlspecialchars($book['author']) ?></strong></p>
                 <p class="text-muted">Thể loại: <span class="badge bg-secondary"><?= htmlspecialchars($book['category_names'] ?? "") ?></span></p>
                 <h3 class="text-danger my-3"><?= number_format($book['price'], 0, ',', '.') ?> đ</h3>
+                <?php if (empty($book["is_available"])): ?><p><span class="badge bg-secondary">Hết hàng</span></p><?php endif; ?>
 
                 <p class="mt-4"><strong>Mô tả nội dung:</strong></p>
                 <p class="text-justify"><?= nl2br(htmlspecialchars($book['description'])) ?></p>
@@ -54,7 +55,7 @@ $book = mysqli_fetch_assoc($result);
                 <hr class="my-4">
 
                 <!-- Form chọn số lượng và mua -->
-                <form action="cart_add.php" method="post" class="row g-3 align-items-center">
+                <?php if (!empty($book["is_available"])): ?><form action="cart_add.php" method="post" class="row g-3 align-items-center">
                     <input type="hidden" name="id" value="<?= $book['id'] ?>">
                     <div class="col-auto">
                         <label for="qty" class="col-form-label fw-bold">Số lượng mua:</label>
@@ -66,6 +67,7 @@ $book = mysqli_fetch_assoc($result);
                         <button type="submit" class="btn btn-primary px-4">🛒 Thêm vào giỏ hàng</button>
                     </div>
                 </form>
+                <?php endif; ?>
             </div>
         </div>
     </div>

@@ -28,6 +28,8 @@ $soLuongGio = array_sum($_SESSION["cart"] ?? []);
                     </span>
                     <?php if (($_SESSION["user_role"] ?? "") === "seller"): ?>
                         <a href="seller/index.php" class="btn btn-outline-info me-2">Khu vực người bán</a>
+                    <?php elseif (($_SESSION["user_role"] ?? "") === "customer"): ?>
+                        <a href="my_orders.php" class="btn btn-outline-info me-2">Đơn đã mua</a>
                     <?php endif; ?>
                     <a href="logout.php" class="btn btn-outline-light me-2">Đăng xuất</a>
                 <?php else: ?>

@@ -15,9 +15,10 @@ if ($qty < 1) {
 }
 
 // Kiểm tra sách có tồn tại trong CSDL không
-$result = mysqli_query($conn, "SELECT id FROM books WHERE id = $id AND (seller_id IS NULL OR approval_status = 'approved')");
+$result = mysqli_query($conn, "SELECT id FROM books WHERE id = $id AND is_available = 1 AND (seller_id IS NULL OR approval_status = 'approved')");
 if (mysqli_num_rows($result) == 0) {
-    die("Sách không tồn tại!");
+    http_response_code(409);
+    exit("Sách không tồn tại, đang chờ duyệt hoặc đã hết hàng.");
 }
 
 if (!isset($_SESSION["cart"])) {

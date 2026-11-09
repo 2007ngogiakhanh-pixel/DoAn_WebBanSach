@@ -6,15 +6,17 @@ require "db.php";
 $cart  = $_SESSION["cart"] ?? [];
 $items = [];
 $tong  = 0;
+$hasUnavailable = false;
 
 if (count($cart) > 0) {
-    $ids = implode(",", array_keys($cart));
+    $ids = implode(",", array_map("intval", array_keys($cart)));
     $result = mysqli_query($conn, "SELECT * FROM books WHERE id IN ($ids)");
 
     while ($book = mysqli_fetch_assoc($result)) {
         $book["soluong"]   = $cart[$book["id"]];
         $book["thanhtien"] = $book["price"] * $book["soluong"];
         $tong += $book["thanhtien"];
+        $hasUnavailable = $hasUnavailable || !(bool)$book["is_available"];
         $items[] = $book;
     }
 }
@@ -62,7 +64,7 @@ if (count($cart) > 0) {
                                          class="rounded"
                                          onerror="this.src=''"> <!-- 👈 Ảnh dự phòng nhỏ -->
                                 </td>
-                                <td><?= htmlspecialchars($sp["title"]) ?></td>
+                                <td><?= htmlspecialchars($sp["title"]) ?><?php if (empty($sp["is_available"])): ?><br><span class="badge bg-secondary">Hết hàng</span><?php endif; ?></td>
                                 <td><?= number_format($sp["price"], 0, ",", ".") ?> đ</td>
                                 <td>
                                     <input type="number" name="qty[<?= $sp["id"] ?>]" 
@@ -94,7 +96,7 @@ if (count($cart) > 0) {
                     </div>
                     <div>
                         <a href="index.php" class="btn btn-outline-primary">Tiếp tục chọn sách</a>
-                        <a href="checkout.php" class="btn btn-success fw-bold px-4">Đặt hàng ngay ➔</a>
+                        <?php if ($hasUnavailable): ?><button type="button" class="btn btn-success fw-bold px-4" disabled>Đang có sách hết hàng</button><?php else: ?><a href="checkout.php" class="btn btn-success fw-bold px-4">Đặt hàng ngay ➔</a><?php endif; ?>
                     </div>
                 </div>
             </form>

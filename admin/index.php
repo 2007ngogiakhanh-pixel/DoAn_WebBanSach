@@ -17,7 +17,21 @@ $result = mysqli_query($conn, $sql);
 $pendingSellers = mysqli_query($conn, "SELECT id, full_name, email, created_at FROM users WHERE role = 'seller' AND status = 'pending' ORDER BY created_at ASC");
 $pendingBooks = mysqli_query($conn, "SELECT b.id, b.title, b.author, b.price, b.image, b.pending_image, b.description, (SELECT GROUP_CONCAT(c2.name ORDER BY c2.name SEPARATOR ', ') FROM book_categories bc2 JOIN categories c2 ON c2.id = bc2.category_id WHERE bc2.book_id = b.id) AS category_names, (SELECT GROUP_CONCAT(bpc.category_name ORDER BY bpc.category_name SEPARATOR ', ') FROM book_pending_categories bpc WHERE bpc.book_id = b.id) AS new_category_names, u.full_name AS seller_name, u.email AS seller_email FROM books b JOIN users u ON b.seller_id = u.id WHERE b.approval_status = 'pending' ORDER BY b.id ASC");
 $accounts = mysqli_query($conn, "SELECT id, full_name, email, role, status, created_at FROM users ORDER BY created_at DESC");
-$orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
+$orderInput = $_GET["order_code"] ?? "";
+$orderCode = is_string($orderInput) ? trim($orderInput) : "";
+$orderError = !is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\d{10}\z/', $orderCode))
+    ? "Mã đơn phải gồm đúng 10 chữ số."
+    : "";
+if ($orderError !== "") {
+    $orders = false;
+} elseif ($orderCode === "") {
+    $orders = mysqli_query($conn, "SELECT o.order_code, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
+} else {
+    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id WHERE o.order_code = ? ORDER BY o.created_at DESC");
+    mysqli_stmt_bind_param($orderStmt, "s", $orderCode);
+    mysqli_stmt_execute($orderStmt);
+    $orders = mysqli_stmt_get_result($orderStmt);
+}
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -122,7 +136,7 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
             <?php endif; ?>
         </section>
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3" id="books">
             <h3>Danh Sách Sách</h3>
             <a href="book_add.php" class="btn btn-success">+ Thêm Sách Mới</a>
         </div>
@@ -138,6 +152,7 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
                         <th>Tác giả</th>
                         <th>Thể loại</th>
                         <th>Giá bán</th>
+                        <th>Tình trạng</th>
                         <th style="width: 150px;">Thao tác</th>
                     </tr>
                 </thead>
@@ -157,6 +172,15 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
                         <td><span class="badge bg-info text-dark"><?= htmlspecialchars($row['category_names'] ?? "") ?></span></td>
                         <td class="text-danger fw-bold"><?= number_format($row['price'], 0, ',', '.') ?> đ</td>
                         <td>
+                            <span class="badge <?= $row["is_available"] ? "bg-success" : "bg-secondary" ?>"><?= $row["is_available"] ? "Còn hàng" : "Hết hàng" ?></span>
+                            <form method="post" action="../book_stock_update.php" class="mt-1">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                <input type="hidden" name="book_id" value="<?= (int)$row["id"] ?>">
+                                <input type="hidden" name="is_available" value="<?= $row["is_available"] ? 0 : 1 ?>">
+                                <button class="btn btn-outline-secondary btn-sm" type="submit"><?= $row["is_available"] ? "Đánh dấu hết hàng" : "Đánh dấu còn hàng" ?></button>
+                            </form>
+                        </td>
+                        <td>
                             <a href="book_edit.php?id=<?= $row['id'] ?>" class="btn btn-warning btn-sm me-1">Sửa</a>
                             <a href="book_delete.php?id=<?= $row['id'] ?>" 
                                onclick="return confirm('Bạn có chắc muốn xóa cuốn sách này?')" 
@@ -173,7 +197,7 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
             <p class="text-muted">Thông tin mật khẩu không được hiển thị.</p>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle bg-white">
-                    <thead class="table-secondary"><tr><th>Họ tên</th><th>Email</th><th>Loại tài khoản</th><th>Trạng thái</th><th>Ngày đăng ký</th></tr></thead>
+                    <thead class="table-secondary"><tr><th>Họ tên</th><th>Email</th><th>Loại tài khoản</th><th>Trạng thái</th><th>Ngày đăng ký</th><th>Thao tác</th></tr></thead>
                     <tbody>
                     <?php while ($account = mysqli_fetch_assoc($accounts)): ?>
                         <tr>
@@ -182,6 +206,13 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
                             <td><?= $account["role"] === "seller" ? "Người bán" : "Khách hàng" ?></td>
                             <td><?= htmlspecialchars($account["status"]) ?></td>
                             <td><?= htmlspecialchars($account["created_at"]) ?></td>
+                            <td>
+                                <form method="post" action="account_delete.php" onsubmit="return confirm('Xóa vĩnh viễn tài khoản này? Lịch sử đơn hàng sẽ được giữ lại. Với người bán, sách đã duyệt vẫn được giữ trên cửa hàng; sách đang chờ duyệt sẽ bị từ chối.')">
+                                    <input type="hidden" name="id" value="<?= (int)$account["id"] ?>">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                    <button class="btn btn-outline-danger btn-sm" type="submit">Xóa tài khoản</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endwhile; ?>
                     </tbody>
@@ -190,17 +221,22 @@ $orders = mysqli_query($conn, "SELECT o.id, o.customer_name, o.phone, o.address,
         </section>
 
         <section id="orders" class="mb-5">
-            <h3>Đơn hàng gần đây</h3>
+            <h3>Đơn hàng<?= $orderCode === "" ? " gần đây" : " theo mã" ?></h3>
+            <form class="row g-2 my-3" method="get" action="index.php#orders">
+                <div class="col-sm-8 col-md-5"><input class="form-control" name="order_code" value="<?= htmlspecialchars($orderCode) ?>" placeholder="Tìm mã đơn 10 chữ số"></div>
+                <div class="col-auto"><button class="btn btn-primary" type="submit">Tìm đơn</button><a class="btn btn-outline-secondary ms-1" href="index.php#orders">Xóa tìm kiếm</a></div>
+            </form>
+            <?php if ($orderError !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($orderError) ?></div><?php endif; ?>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle bg-white">
                     <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người mua</th><th>Liên hệ</th><th>Địa chỉ giao hàng</th><th>Sách</th><th>Tổng tiền</th><th>Ngày đặt</th></tr></thead>
                     <tbody>
-                    <?php if (mysqli_num_rows($orders) === 0): ?>
+                    <?php if ($orders && mysqli_num_rows($orders) === 0): ?>
                         <tr><td colspan="7" class="text-center text-muted">Chưa có đơn hàng.</td></tr>
-                    <?php else: ?>
+                    <?php elseif ($orders): ?>
                         <?php while ($order = mysqli_fetch_assoc($orders)): ?>
                             <tr>
-                                <td>#<?= (int)$order["id"] ?></td>
+                                <td><?= htmlspecialchars($order["order_code"]) ?></td>
                                 <td><?= htmlspecialchars($order["account_name"] ?? $order["customer_name"]) ?><?php if (!empty($order["email"])): ?><br><small><?= htmlspecialchars($order["email"]) ?></small><?php endif; ?></td>
                                 <td><?= htmlspecialchars($order["phone"]) ?></td>
                                 <td><?= htmlspecialchars($order["address"]) ?></td>

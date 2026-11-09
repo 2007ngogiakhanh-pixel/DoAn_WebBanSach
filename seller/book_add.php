@@ -1,8 +1,8 @@
 <?php
 session_start();
 require "../auth.php";
+require_once "../db.php";
 require_role("seller");
-require "../db.php";
 require "../book_helpers.php";
 
 $categories = mysqli_query($conn, "SELECT id, name FROM categories ORDER BY name");
