@@ -21,7 +21,11 @@ $soLuongGio = array_sum($_SESSION["cart"] ?? []);
                 </li>
             </ul>
             <div class="d-flex align-items-center">
-                <?php if (isset($_SESSION["user_id"])): ?>
+                <?php if (isset($_SESSION["admin"])): ?>
+                    <span class="navbar-text text-white me-3">Admin</span>
+                    <a href="admin/index.php" class="btn btn-outline-info me-2">Quản trị</a>
+                    <a href="admin/logout.php" class="btn btn-outline-light me-2">Đăng xuất</a>
+                <?php elseif (isset($_SESSION["user_id"])): ?>
                     <span class="navbar-text text-white me-3">
                         <?= htmlspecialchars($_SESSION["user_name"]) ?>
                         (<?= ($_SESSION["user_role"] ?? "") === "seller" ? "Người bán" : "Khách hàng" ?>)
