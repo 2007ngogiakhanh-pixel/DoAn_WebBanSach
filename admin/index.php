@@ -25,9 +25,9 @@ $orderError = !is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\
 if ($orderError !== "") {
     $orders = false;
 } elseif ($orderCode === "") {
-    $orders = mysqli_query($conn, "SELECT o.order_code, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
+    $orders = mysqli_query($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
 } else {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id WHERE o.order_code = ? ORDER BY o.created_at DESC");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id WHERE o.order_code = ? ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($orderStmt, "s", $orderCode);
     mysqli_stmt_execute($orderStmt);
     $orders = mysqli_stmt_get_result($orderStmt);
@@ -229,10 +229,10 @@ if ($orderError !== "") {
             <?php if ($orderError !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($orderError) ?></div><?php endif; ?>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle bg-white">
-                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người mua</th><th>Liên hệ</th><th>Địa chỉ giao hàng</th><th>Sách</th><th>Tổng tiền</th><th>Ngày đặt</th></tr></thead>
+                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người mua</th><th>Liên hệ</th><th>Địa chỉ giao hàng</th><th>Sách</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
                     <tbody>
                     <?php if ($orders && mysqli_num_rows($orders) === 0): ?>
-                        <tr><td colspan="7" class="text-center text-muted">Chưa có đơn hàng.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted">Chưa có đơn hàng.</td></tr>
                     <?php elseif ($orders): ?>
                         <?php while ($order = mysqli_fetch_assoc($orders)): ?>
                             <tr>
@@ -242,6 +242,30 @@ if ($orderError !== "") {
                                 <td><?= htmlspecialchars($order["address"]) ?></td>
                                 <td><?= htmlspecialchars($order["items"] ?? "") ?></td>
                                 <td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td>
+                                <td>
+                                    <?php
+                                    $orderStatusLabels = [
+                                        "pending_confirmation" => "Chờ xác nhận",
+                                        "shipping" => "Đang giao",
+                                        "delivered" => "Đã giao",
+                                        "cancelled" => "Đã hủy",
+                                    ];
+                                    ?>
+                                    <form method="post" action="order_status_update.php" class="d-flex gap-1">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                        <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
+                                        <input type="hidden" name="order_code" value="<?= htmlspecialchars($orderCode) ?>">
+                                        <select class="form-select form-select-sm" name="status" aria-label="Trạng thái đơn hàng">
+                                            <option value="<?= htmlspecialchars($order["status"]) ?>" selected><?= htmlspecialchars($orderStatusLabels[$order["status"]] ?? $order["status"]) ?></option>
+                                            <?php if ($order["status"] === "pending_confirmation"): ?>
+                                                <option value="shipping">Đang giao</option><option value="cancelled">Đã hủy</option>
+                                            <?php elseif ($order["status"] === "shipping"): ?>
+                                                <option value="delivered">Đã giao</option><option value="cancelled">Đã hủy</option>
+                                            <?php endif; ?>
+                                        </select>
+                                        <?php if (in_array($order["status"], ["pending_confirmation", "shipping"], true)): ?><button class="btn btn-primary btn-sm" type="submit">Lưu</button><?php endif; ?>
+                                    </form>
+                                </td>
                                 <td><?= htmlspecialchars($order["created_at"] ?? "") ?></td>
                             </tr>
                         <?php endwhile; ?>

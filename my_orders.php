@@ -15,10 +15,10 @@ if (!is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\d{10}\z/',
 if ($error !== "") {
     $orders = false;
 } elseif ($orderCode === "") {
-    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.created_at, o.total_price, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o WHERE o.customer_id = ? ORDER BY o.created_at DESC LIMIT 100");
+    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o WHERE o.customer_id = ? ORDER BY o.created_at DESC LIMIT 100");
     mysqli_stmt_bind_param($stmt, "i", $customerId);
 } else {
-    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.created_at, o.total_price, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o WHERE o.customer_id = ? AND o.order_code = ? ORDER BY o.created_at DESC");
+    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o WHERE o.customer_id = ? AND o.order_code = ? ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($stmt, "is", $customerId, $orderCode);
 }
 if ($error === "") {
@@ -47,10 +47,18 @@ if ($error === "") {
         <?php if ($orders && mysqli_num_rows($orders) > 0): ?>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle">
-                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Sách</th><th>Tổng tiền</th><th>Ngày đặt</th></tr></thead>
+                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Sách</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
                     <tbody>
                     <?php while ($order = mysqli_fetch_assoc($orders)): ?>
-                        <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
+                        <?php
+                        $statusLabels = [
+                            "pending_confirmation" => "Chờ xác nhận",
+                            "shipping" => "Đang giao",
+                            "delivered" => "Đã giao",
+                            "cancelled" => "Đã hủy",
+                        ];
+                        ?>
+                        <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($statusLabels[$order["status"]] ?? $order["status"]) ?></td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
                     <?php endwhile; ?>
                     </tbody>
                 </table>

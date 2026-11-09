@@ -3,17 +3,47 @@
 session_start();
 require "db.php";
 
-// Lấy danh sách thể loại để làm menu lọc
-$cat_result = mysqli_query($conn, "SELECT * FROM categories");
-
-// Lọc theo thể loại nếu người dùng nhấp chọn
-$cat_id = isset($_GET['cat']) ? (int)$_GET['cat'] : 0;
-if ($cat_id > 0) {
-    $sql = "SELECT * FROM books WHERE EXISTS (SELECT 1 FROM book_categories bc WHERE bc.book_id = books.id AND bc.category_id = $cat_id) AND (seller_id IS NULL OR approval_status = 'approved') ORDER BY id DESC";
-} else {
-    $sql = "SELECT * FROM books WHERE seller_id IS NULL OR approval_status = 'approved' ORDER BY id DESC";
+$cat_result = mysqli_query($conn, "SELECT id, name FROM categories ORDER BY name");
+$queryInput = $_GET["q"] ?? "";
+$search = is_string($queryInput) ? trim(mb_substr($queryInput, 0, 100, "UTF-8")) : "";
+$categoryInput = $_GET["cat"] ?? "";
+$cat_id = filter_var($categoryInput, FILTER_VALIDATE_INT);
+$cat_id = $cat_id !== false && $cat_id > 0 ? $cat_id : 0;
+$sortOptions = [
+    "newest" => "b.id DESC",
+    "price_asc" => "b.price ASC, b.id DESC",
+    "price_desc" => "b.price DESC, b.id DESC",
+    "title_asc" => "b.title ASC, b.id DESC",
+];
+$sort = $_GET["sort"] ?? "newest";
+if (!is_string($sort) || !isset($sortOptions[$sort])) {
+    $sort = "newest";
 }
-$books_result = mysqli_query($conn, $sql);
+$pageInput = $_GET["page"] ?? 1;
+$page = filter_var($pageInput, FILTER_VALIDATE_INT);
+$page = $page !== false && $page > 0 ? $page : 1;
+$perPage = 20;
+$offset = ($page - 1) * $perPage;
+$searchPattern = "%" . $search . "%";
+$filterSql = "(? = '' OR b.title LIKE ? OR b.author LIKE ?) AND (? = 0 OR EXISTS (SELECT 1 FROM book_categories bc WHERE bc.book_id = b.id AND bc.category_id = ?)) AND (b.seller_id IS NULL OR b.approval_status = 'approved')";
+
+$countStmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM books b WHERE $filterSql");
+mysqli_stmt_bind_param($countStmt, "sssii", $search, $searchPattern, $searchPattern, $cat_id, $cat_id);
+mysqli_stmt_execute($countStmt);
+$totalBooks = (int)mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))["total"];
+$totalPages = max(1, (int)ceil($totalBooks / $perPage));
+$page = min($page, $totalPages);
+$offset = ($page - 1) * $perPage;
+
+$booksStmt = mysqli_prepare($conn, "SELECT b.* FROM books b WHERE $filterSql ORDER BY " . $sortOptions[$sort] . " LIMIT ? OFFSET ?");
+mysqli_stmt_bind_param($booksStmt, "sssiiii", $search, $searchPattern, $searchPattern, $cat_id, $cat_id, $perPage, $offset);
+mysqli_stmt_execute($booksStmt);
+$books_result = mysqli_stmt_get_result($booksStmt);
+
+$paginationParams = ["q" => $search, "sort" => $sort];
+if ($cat_id > 0) {
+    $paginationParams["cat"] = $cat_id;
+}
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -36,7 +66,8 @@ $books_result = mysqli_query($conn, $sql);
                         Tất cả thể loại
                     </a>
                     <?php while ($cat = mysqli_fetch_assoc($cat_result)): ?>
-                        <a href="index.php?cat=<?= $cat['id'] ?>" 
+                        <?php $categoryUrl = http_build_query(array_merge($paginationParams, ["cat" => (int)$cat["id"]])); ?>
+                        <a href="index.php?<?= htmlspecialchars($categoryUrl) ?>"
                            class="list-group-item list-group-item-action <?= $cat_id == $cat['id'] ? 'active' : '' ?>">
                             <?= htmlspecialchars($cat['name']) ?>
                         </a>
@@ -47,8 +78,25 @@ $books_result = mysqli_query($conn, $sql);
             <!-- Cột phải: Danh sách sách -->
             <div class="col-md-9">
                 <h3 class="mb-3">Danh Sách Sách</h3>
+                <form class="row g-2 mb-4" method="get" action="index.php">
+                    <?php if ($cat_id > 0): ?><input type="hidden" name="cat" value="<?= $cat_id ?>"><?php endif; ?>
+                    <div class="col-md-6">
+                        <input class="form-control" type="search" name="q" value="<?= htmlspecialchars($search) ?>" placeholder="Tìm theo tên sách hoặc tác giả">
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" name="sort">
+                            <option value="newest" <?= $sort === "newest" ? "selected" : "" ?>>Mới nhất</option>
+                            <option value="price_asc" <?= $sort === "price_asc" ? "selected" : "" ?>>Giá thấp đến cao</option>
+                            <option value="price_desc" <?= $sort === "price_desc" ? "selected" : "" ?>>Giá cao đến thấp</option>
+                            <option value="title_asc" <?= $sort === "title_asc" ? "selected" : "" ?>>Tên sách A–Z</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-grid"><button class="btn btn-primary" type="submit">Tìm kiếm</button></div>
+                    <?php if ($search !== "" || $cat_id > 0 || $sort !== "newest"): ?><div class="col-12"><a href="index.php" class="small">Xóa bộ lọc</a></div><?php endif; ?>
+                </form>
+                <p class="text-muted">Tìm thấy <?= number_format($totalBooks) ?> sách · Trang <?= $page ?> / <?= $totalPages ?></p>
                 <div class="row row-cols-1 row-cols-md-3 g-4">
-                    <?php if (mysqli_num_rows($books_result) > 0): ?>
+                    <?php if ($totalBooks > 0): ?>
                         <?php while ($book = mysqli_fetch_assoc($books_result)): ?>
                             <div class="col">
                                 <div class="card h-100 shadow-sm">
@@ -81,9 +129,21 @@ $books_result = mysqli_query($conn, $sql);
                             </div>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <div class="col-12"><p class="alert alert-info">Chưa có sách nào thuộc thể loại này.</p></div>
+                        <div class="col-12"><p class="alert alert-info">Không tìm thấy sách phù hợp.</p></div>
                     <?php endif; ?>
                 </div>
+                <?php if ($totalPages > 1): ?>
+                    <nav class="mt-4" aria-label="Phân trang sách">
+                        <ul class="pagination justify-content-center">
+                            <?php for ($pageNumber = 1; $pageNumber <= $totalPages; $pageNumber++): ?>
+                                <?php $pageUrl = http_build_query(array_merge($paginationParams, ["page" => $pageNumber])); ?>
+                                <li class="page-item <?= $pageNumber === $page ? "active" : "" ?>">
+                                    <a class="page-link" href="index.php?<?= htmlspecialchars($pageUrl) ?>"><?= $pageNumber ?></a>
+                                </li>
+                            <?php endfor; ?>
+                        </ul>
+                    </nav>
+                <?php endif; ?>
             </div>
         </div>
     </div>

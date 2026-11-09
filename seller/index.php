@@ -17,10 +17,10 @@ $orderError = !is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\
 if ($orderError !== "") {
     $sellerOrders = false;
 } elseif ($orderCode === "") {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.customer_name, o.phone, o.address, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.phone, o.address, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100");
     mysqli_stmt_bind_param($orderStmt, "i", $sellerId);
 } else {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.customer_name, o.phone, o.address, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? AND o.order_code = ? GROUP BY o.id ORDER BY o.created_at DESC");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.phone, o.address, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? AND o.order_code = ? GROUP BY o.id ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($orderStmt, "is", $sellerId, $orderCode);
 }
 if ($orderError === "") {
@@ -121,10 +121,18 @@ unset($_SESSION["seller_notice"]);
             <?php if ($sellerOrders && mysqli_num_rows($sellerOrders) > 0): ?>
                 <div class="table-responsive">
                     <table class="table table-bordered align-middle bg-white">
-                        <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người nhận</th><th>Điện thoại</th><th>Địa chỉ</th><th>Sách của bạn</th><th>Tiền sách của bạn</th><th>Ngày đặt</th></tr></thead>
+                        <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người nhận</th><th>Điện thoại</th><th>Địa chỉ</th><th>Sách của bạn</th><th>Tiền sách của bạn</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
                         <tbody>
+                        <?php
+                        $sellerOrderStatusLabels = [
+                            "pending_confirmation" => "Chờ xác nhận",
+                            "shipping" => "Đang giao",
+                            "delivered" => "Đã giao",
+                            "cancelled" => "Đã hủy",
+                        ];
+                        ?>
                         <?php while ($order = mysqli_fetch_assoc($sellerOrders)): ?>
-                            <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["customer_name"]) ?></td><td><?= htmlspecialchars($order["phone"]) ?></td><td><?= htmlspecialchars($order["address"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= number_format($order["seller_total"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
+                            <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["customer_name"]) ?></td><td><?= htmlspecialchars($order["phone"]) ?></td><td><?= htmlspecialchars($order["address"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= number_format($order["seller_total"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($sellerOrderStatusLabels[$order["status"]] ?? $order["status"]) ?></td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
                         <?php endwhile; ?>
                         </tbody>
                     </table>
