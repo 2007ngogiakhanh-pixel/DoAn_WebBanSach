@@ -2,6 +2,7 @@
 // index.php - Trang chủ hiển thị danh sách sách
 session_start();
 require "db.php";
+require "auth.php";
 
 $cat_result = mysqli_query($conn, "SELECT id, name FROM categories ORDER BY name");
 $queryInput = $_GET["q"] ?? "";
@@ -115,13 +116,14 @@ if ($cat_id > 0) {
                                         <p class="card-text text-danger fw-bold fs-5 mt-auto">
                                             <?= number_format($book['price'], 0, ',', '.') ?> đ
                                         </p>
-                                        <?php if (empty($book["is_available"])): ?><span class="badge bg-secondary mb-2">Hết hàng</span><?php endif; ?>
+                                        <?php if (empty($book["is_available"]) || (int)$book["stock_quantity"] < 1): ?><span class="badge bg-secondary mb-2">Hết hàng</span><?php else: ?><span class="small text-muted mb-2">Còn <?= (int)$book["stock_quantity"] ?> cuốn</span><?php endif; ?>
                                         <div class="d-grid gap-2">
                                             <a href="detail.php?id=<?= $book['id'] ?>" class="btn btn-outline-primary btn-sm">Xem chi tiết</a>
                                             <form action="cart_add.php" method="post">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                                 <input type="hidden" name="id" value="<?= $book['id'] ?>">
                                                 <input type="hidden" name="qty" value="1">
-                                                <button type="submit" class="btn btn-success btn-sm w-100 mt-1" <?= empty($book["is_available"]) ? "disabled" : "" ?>><?= empty($book["is_available"]) ? "Hết hàng" : "Thêm vào giỏ" ?></button>
+                                                <button type="submit" class="btn btn-success btn-sm w-100 mt-1" <?= empty($book["is_available"]) || (int)$book["stock_quantity"] < 1 ? "disabled" : "" ?>><?= empty($book["is_available"]) || (int)$book["stock_quantity"] < 1 ? "Hết hàng" : "Thêm vào giỏ" ?></button>
                                             </form>
                                         </div>
                                     </div>

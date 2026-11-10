@@ -22,6 +22,7 @@ $title = $book["title"];
 $author = $book["author"];
 $description = $book["description"] ?? "";
 $price = (int)$book["price"];
+$stockQuantity = (int)$book["stock_quantity"];
 $categoryResultStmt = mysqli_prepare($conn, "SELECT category_id FROM book_categories WHERE book_id = ?");
 $categoryIds = [];
 if ($categoryResultStmt) {
@@ -60,6 +61,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $author = trim($_POST["author"] ?? "");
     $description = trim($_POST["description"] ?? "");
     $price = (int)($_POST["price"] ?? 0);
+    $stockQuantity = filter_var($_POST["stock_quantity"] ?? null, FILTER_VALIDATE_INT);
     $categoryInput = $_POST["new_categories"] ?? "";
     $pendingCategoryInput = is_string($categoryInput) ? $categoryInput : "";
     $pendingCategoryNames = [];
@@ -72,8 +74,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error
     );
 
-    if ($validCategories && ($title === "" || $author === "" || $price <= 0)) {
-        $error = "Vui lòng nhập tên sách, tác giả và giá hợp lệ.";
+    if ($stockQuantity === false || $stockQuantity < 0 || $stockQuantity > 4294967295) {
+        $error = "Số lượng tồn kho không hợp lệ.";
+    } elseif ($validCategories && ($title === "" || $author === "" || $price <= 0)) {
+        $error = "Vui lòng nhập tên sách, tác giả, giá và tồn kho hợp lệ.";
     } elseif ($validCategories) {
         $imageError = "";
         $newImage = save_book_image($_FILES["image"] ?? [], $imageError);
@@ -82,10 +86,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         } else {
             $pendingImage = $newImage ?? $book["pending_image"];
             if (mysqli_begin_transaction($conn)) {
-                $update = mysqli_prepare($conn, "UPDATE books SET title = ?, author = ?, price = ?, pending_image = ?, description = ?, approval_status = 'pending' WHERE id = ? AND seller_id = ?");
+                $update = mysqli_prepare($conn, "UPDATE books SET title = ?, author = ?, price = ?, pending_image = ?, description = ?, stock_quantity = ?, is_available = IF(? > 0, 1, 0), approval_status = 'pending' WHERE id = ? AND seller_id = ?");
                 $saved = $update !== false;
                 if ($saved) {
-                    mysqli_stmt_bind_param($update, "ssissii", $title, $author, $price, $pendingImage, $description, $id, $sellerId);
+                    mysqli_stmt_bind_param($update, "ssissiiii", $title, $author, $price, $pendingImage, $description, $stockQuantity, $stockQuantity, $id, $sellerId);
                     $saved = mysqli_stmt_execute($update);
                 }
                 if ($saved) {
@@ -149,6 +153,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     </div>
                 </div>
                 <div class="mb-3"><label class="form-label">Giá bán (đ)</label><input class="form-control" type="number" min="1" name="price" value="<?= $price ?>" required></div>
+                <div class="mb-3"><label class="form-label">Số lượng tồn kho</label><input class="form-control" type="number" min="0" name="stock_quantity" value="<?= htmlspecialchars((string)$stockQuantity) ?>" required></div>
                 <div class="mb-3"><label class="form-label">Ảnh bìa mới (không chọn nếu giữ ảnh hiện tại; ảnh mới cần admin duyệt)</label><input class="form-control" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
                 <div class="mb-3"><label class="form-label">Mô tả</label><textarea class="form-control" name="description" rows="4"><?= htmlspecialchars($description) ?></textarea></div>
                 <a class="btn btn-secondary" href="index.php">Hủy</a>

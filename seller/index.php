@@ -17,10 +17,10 @@ $orderError = !is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\
 if ($orderError !== "") {
     $sellerOrders = false;
 } elseif ($orderCode === "") {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.phone, o.address, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100");
     mysqli_stmt_bind_param($orderStmt, "i", $sellerId);
 } else {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.phone, o.address, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? AND o.order_code = ? GROUP BY o.id ORDER BY o.created_at DESC");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? AND o.order_code = ? GROUP BY o.id ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($orderStmt, "is", $sellerId, $orderCode);
 }
 if ($orderError === "") {
@@ -87,13 +87,19 @@ unset($_SESSION["seller_notice"]);
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <span class="badge <?= $book["is_available"] ? "bg-success" : "bg-secondary" ?>"><?= $book["is_available"] ? "Còn hàng" : "Hết hàng" ?></span>
-                                <form method="post" action="../book_stock_update.php" class="mt-1">
+                                <span class="badge <?= $book["is_available"] && (int)$book["stock_quantity"] > 0 ? "bg-success" : "bg-secondary" ?>"><?= $book["is_available"] && (int)$book["stock_quantity"] > 0 ? "Còn hàng" : "Hết hàng" ?></span>
+                                <form method="post" action="../book_stock_update.php" class="mt-1 d-flex gap-1">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                    <input type="hidden" name="book_id" value="<?= (int)$book["id"] ?>">
+                                    <input class="form-control form-control-sm" type="number" min="0" max="4294967295" name="stock_quantity" value="<?= (int)$book["stock_quantity"] ?>" aria-label="Số lượng tồn kho">
+                                    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
+                                </form>
+                                <?php if ($book["is_available"] || (int)$book["stock_quantity"] > 0): ?><form method="post" action="../book_stock_update.php" class="mt-1">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                     <input type="hidden" name="book_id" value="<?= (int)$book["id"] ?>">
                                     <input type="hidden" name="is_available" value="<?= $book["is_available"] ? 0 : 1 ?>">
-                                    <button class="btn btn-outline-secondary btn-sm" type="submit"><?= $book["is_available"] ? "Đánh dấu hết hàng" : "Đánh dấu còn hàng" ?></button>
-                                </form>
+                                    <button class="btn btn-outline-secondary btn-sm" type="submit"><?= $book["is_available"] ? "Tạm ngừng bán" : "Bật bán lại" ?></button>
+                                </form><?php else: ?><small class="text-muted">Nhập tồn kho để bật bán</small><?php endif; ?>
                             </td>
                             <td class="text-nowrap">
                                 <a class="btn btn-warning btn-sm" href="book_edit.php?id=<?= (int)$book["id"] ?>">Sửa</a>
@@ -121,7 +127,7 @@ unset($_SESSION["seller_notice"]);
             <?php if ($sellerOrders && mysqli_num_rows($sellerOrders) > 0): ?>
                 <div class="table-responsive">
                     <table class="table table-bordered align-middle bg-white">
-                        <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người nhận</th><th>Điện thoại</th><th>Địa chỉ</th><th>Sách của bạn</th><th>Tiền sách của bạn</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
+                        <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người nhận</th><th>Liên hệ</th><th>Địa chỉ</th><th>Sách của bạn</th><th>Ghi chú</th><th>Thanh toán</th><th>Tiền sách của bạn</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
                         <tbody>
                         <?php
                         $sellerOrderStatusLabels = [
@@ -132,7 +138,7 @@ unset($_SESSION["seller_notice"]);
                         ];
                         ?>
                         <?php while ($order = mysqli_fetch_assoc($sellerOrders)): ?>
-                            <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["customer_name"]) ?></td><td><?= htmlspecialchars($order["phone"]) ?></td><td><?= htmlspecialchars($order["address"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= number_format($order["seller_total"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($sellerOrderStatusLabels[$order["status"]] ?? $order["status"]) ?></td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
+                            <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["customer_name"]) ?></td><td><?= htmlspecialchars($order["phone"]) ?><br><small><?= htmlspecialchars($order["recipient_email"] ?? "") ?></small></td><td><?= htmlspecialchars($order["address"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= htmlspecialchars($order["order_note"] ?? "") ?></td><td><?= $order["payment_method"] === "bank_transfer" ? "Chuyển khoản thủ công" : "Thanh toán khi nhận hàng (COD)" ?></td><td><?= number_format($order["seller_total"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($sellerOrderStatusLabels[$order["status"]] ?? $order["status"]) ?></td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
                         <?php endwhile; ?>
                         </tbody>
                     </table>

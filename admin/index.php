@@ -25,9 +25,9 @@ $orderError = !is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\
 if ($orderError !== "") {
     $orders = false;
 } elseif ($orderCode === "") {
-    $orders = mysqli_query($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
+    $orders = mysqli_query($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
 } else {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.phone, o.address, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id WHERE o.order_code = ? ORDER BY o.created_at DESC");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id WHERE o.order_code = ? ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($orderStmt, "s", $orderCode);
     mysqli_stmt_execute($orderStmt);
     $orders = mysqli_stmt_get_result($orderStmt);
@@ -153,6 +153,7 @@ if ($orderError !== "") {
                         <th>Thể loại</th>
                         <th>Giá bán</th>
                         <th>Tình trạng</th>
+                        <th>Tồn kho</th>
                         <th style="width: 150px;">Thao tác</th>
                     </tr>
                 </thead>
@@ -172,12 +173,20 @@ if ($orderError !== "") {
                         <td><span class="badge bg-info text-dark"><?= htmlspecialchars($row['category_names'] ?? "") ?></span></td>
                         <td class="text-danger fw-bold"><?= number_format($row['price'], 0, ',', '.') ?> đ</td>
                         <td>
-                            <span class="badge <?= $row["is_available"] ? "bg-success" : "bg-secondary" ?>"><?= $row["is_available"] ? "Còn hàng" : "Hết hàng" ?></span>
-                            <form method="post" action="../book_stock_update.php" class="mt-1">
+                            <span class="badge <?= $row["is_available"] && (int)$row["stock_quantity"] > 0 ? "bg-success" : "bg-secondary" ?>"><?= $row["is_available"] && (int)$row["stock_quantity"] > 0 ? "Còn hàng" : "Hết hàng" ?></span>
+                            <?php if ($row["is_available"] || (int)$row["stock_quantity"] > 0): ?><form method="post" action="../book_stock_update.php" class="mt-1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                 <input type="hidden" name="book_id" value="<?= (int)$row["id"] ?>">
                                 <input type="hidden" name="is_available" value="<?= $row["is_available"] ? 0 : 1 ?>">
-                                <button class="btn btn-outline-secondary btn-sm" type="submit"><?= $row["is_available"] ? "Đánh dấu hết hàng" : "Đánh dấu còn hàng" ?></button>
+                                <button class="btn btn-outline-secondary btn-sm" type="submit"><?= $row["is_available"] ? "Tạm ngừng bán" : "Bật bán lại" ?></button>
+                            </form><?php else: ?><small class="text-muted">Nhập tồn kho để bật bán</small><?php endif; ?>
+                        </td>
+                        <td>
+                            <form method="post" action="../book_stock_update.php" class="d-flex gap-1">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                <input type="hidden" name="book_id" value="<?= (int)$row["id"] ?>">
+                                <input class="form-control form-control-sm" type="number" min="0" max="4294967295" name="stock_quantity" value="<?= (int)$row["stock_quantity"] ?>" aria-label="Số lượng tồn kho">
+                                <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
                             </form>
                         </td>
                         <td>
@@ -229,18 +238,20 @@ if ($orderError !== "") {
             <?php if ($orderError !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($orderError) ?></div><?php endif; ?>
             <div class="table-responsive">
                 <table class="table table-bordered align-middle bg-white">
-                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người mua</th><th>Liên hệ</th><th>Địa chỉ giao hàng</th><th>Sách</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
+                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Người mua</th><th>Liên hệ</th><th>Địa chỉ giao hàng</th><th>Sách</th><th>Ghi chú</th><th>Thanh toán</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
                     <tbody>
                     <?php if ($orders && mysqli_num_rows($orders) === 0): ?>
-                        <tr><td colspan="8" class="text-center text-muted">Chưa có đơn hàng.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted">Chưa có đơn hàng.</td></tr>
                     <?php elseif ($orders): ?>
                         <?php while ($order = mysqli_fetch_assoc($orders)): ?>
                             <tr>
                                 <td><?= htmlspecialchars($order["order_code"]) ?></td>
-                                <td><?= htmlspecialchars($order["account_name"] ?? $order["customer_name"]) ?><?php if (!empty($order["email"])): ?><br><small><?= htmlspecialchars($order["email"]) ?></small><?php endif; ?></td>
-                                <td><?= htmlspecialchars($order["phone"]) ?></td>
+                                <td><?= htmlspecialchars($order["account_name"] ?? $order["customer_name"]) ?></td>
+                                <td><?= htmlspecialchars($order["phone"]) ?><br><small><?= htmlspecialchars($order["recipient_email"] ?? $order["email"] ?? "") ?></small></td>
                                 <td><?= htmlspecialchars($order["address"]) ?></td>
                                 <td><?= htmlspecialchars($order["items"] ?? "") ?></td>
+                                <td><?= htmlspecialchars($order["order_note"] ?? "") ?></td>
+                                <td><?= $order["payment_method"] === "bank_transfer" ? "Chuyển khoản thủ công" : "Thanh toán khi nhận hàng (COD)" ?></td>
                                 <td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td>
                                 <td>
                                     <?php

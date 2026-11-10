@@ -1,6 +1,7 @@
 <?php
 session_start();
 require "db.php";
+require "cart_storage.php";
 $next = ($_POST["next"] ?? $_GET["next"] ?? "") === "checkout" ? "checkout" : "";
 $loi = "";
 
@@ -10,7 +11,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($account === "admin" && $password === "123456") {
         session_regenerate_id(true);
-        unset($_SESSION["user_id"], $_SESSION["user_name"], $_SESSION["user_role"]);
+        unset($_SESSION["user_id"], $_SESSION["user_name"], $_SESSION["user_role"], $_SESSION["cart"]);
         $_SESSION["admin"] = "admin";
         header("Location: admin/index.php");
         exit;
@@ -27,15 +28,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 ? "Tài khoản người bán đang chờ admin duyệt."
                 : "Tài khoản này chưa được kích hoạt.";
         } else {
-            session_regenerate_id(true);
-            unset($_SESSION["admin"]);
-            $_SESSION["user_id"] = (int)$user["id"];
-            $_SESSION["user_name"] = $user["full_name"];
-            $_SESSION["user_role"] = $user["role"];
-            header("Location: " . ($user["role"] === "seller"
-                ? "seller/index.php"
-                : ($next === "checkout" ? "checkout.php" : "index.php")));
-            exit;
+            $previousUserId = isset($_SESSION["user_id"]) ? (int)$_SESSION["user_id"] : null;
+            $accountCart = [];
+            $cartLoaded = load_user_cart($conn, (int)$user["id"], $accountCart);
+            if (!$cartLoaded) {
+                $loi = "Không thể tải giỏ hàng của tài khoản. Vui lòng thử lại.";
+            } else {
+                if ($previousUserId === null) {
+                    foreach (normalize_cart($_SESSION["cart"] ?? []) as $bookId => $quantity) {
+                        $accountCart[$bookId] = min(4294967295, ($accountCart[$bookId] ?? 0) + $quantity);
+                    }
+                    if (!save_user_cart($conn, (int)$user["id"], $accountCart)) {
+                        $loi = "Không thể lưu giỏ hàng vào tài khoản. Vui lòng thử lại.";
+                    }
+                }
+
+                if ($loi === "") {
+                    session_regenerate_id(true);
+                    unset($_SESSION["admin"]);
+                    $_SESSION["user_id"] = (int)$user["id"];
+                    $_SESSION["user_name"] = $user["full_name"];
+                    $_SESSION["user_role"] = $user["role"];
+                    $_SESSION["cart"] = $accountCart;
+                    header("Location: " . ($user["role"] === "seller"
+                        ? "seller/index.php"
+                        : ($next === "checkout" ? "checkout.php" : "index.php")));
+                    exit;
+                }
+            }
         }
     }
 }

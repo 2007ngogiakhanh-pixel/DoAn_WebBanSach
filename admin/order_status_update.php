@@ -52,6 +52,28 @@ if (!$canTransition) {
         : "Không tìm thấy đơn hàng.");
 }
 
+if ($newStatus === "cancelled") {
+    $details = mysqli_prepare($conn, "SELECT book_id, quantity FROM order_details WHERE order_id = ?");
+    mysqli_stmt_bind_param($details, "i", $orderId);
+    if (!mysqli_stmt_execute($details)) {
+        mysqli_rollback($conn);
+        http_response_code(500);
+        exit("Không thể khôi phục tồn kho của đơn hàng.");
+    }
+    $items = mysqli_stmt_get_result($details);
+    $restock = mysqli_prepare($conn, "UPDATE books SET is_available = IF(stock_quantity = 0, 1, is_available), stock_quantity = stock_quantity + ? WHERE id = ?");
+    while ($item = mysqli_fetch_assoc($items)) {
+        $bookId = (int)$item["book_id"];
+        $quantity = (int)$item["quantity"];
+        mysqli_stmt_bind_param($restock, "ii", $quantity, $bookId);
+        if (!mysqli_stmt_execute($restock)) {
+            mysqli_rollback($conn);
+            http_response_code(500);
+            exit("Không thể khôi phục tồn kho của đơn hàng.");
+        }
+    }
+}
+
 $update = mysqli_prepare($conn, "UPDATE orders SET status = ? WHERE id = ?");
 mysqli_stmt_bind_param($update, "si", $newStatus, $orderId);
 if (!mysqli_stmt_execute($update) || !mysqli_commit($conn)) {

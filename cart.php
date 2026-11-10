@@ -2,11 +2,15 @@
 // cart.php - Xem danh sách sách trong giỏ
 session_start();
 require "db.php";
+require "auth.php";
+require "cart_storage.php";
 
-$cart  = $_SESSION["cart"] ?? [];
+$cart  = normalize_cart($_SESSION["cart"] ?? []);
 $items = [];
 $tong  = 0;
 $hasUnavailable = false;
+$cartError = $_SESSION["cart_error"] ?? "";
+unset($_SESSION["cart_error"]);
 
 if (count($cart) > 0) {
     $ids = implode(",", array_map("intval", array_keys($cart)));
@@ -16,7 +20,10 @@ if (count($cart) > 0) {
         $book["soluong"]   = $cart[$book["id"]];
         $book["thanhtien"] = $book["price"] * $book["soluong"];
         $tong += $book["thanhtien"];
-        $hasUnavailable = $hasUnavailable || !(bool)$book["is_available"];
+        $hasUnavailable = $hasUnavailable
+            || !(bool)$book["is_available"]
+            || (int)$book["stock_quantity"] < $book["soluong"]
+            || ($book["seller_id"] !== null && $book["approval_status"] !== "approved");
         $items[] = $book;
     }
 }
@@ -34,6 +41,7 @@ if (count($cart) > 0) {
 
     <div class="container my-5">
         <h3 class="mb-4">🛒 Giỏ hàng của bạn</h3>
+        <?php if ($cartError !== ""): ?><div class="alert alert-warning"><?= htmlspecialchars($cartError) ?></div><?php endif; ?>
 
         <?php if (count($items) == 0): ?>
             <div class="alert alert-info py-4 text-center">
@@ -42,6 +50,7 @@ if (count($cart) > 0) {
             </div>
         <?php else: ?>
             <form method="post" action="cart_update.php">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                 <div class="table-responsive">
                     <table class="table table-bordered align-middle">
                         <thead class="table-dark">
@@ -64,11 +73,15 @@ if (count($cart) > 0) {
                                          class="rounded"
                                          onerror="this.src=''"> <!-- 👈 Ảnh dự phòng nhỏ -->
                                 </td>
-                                <td><?= htmlspecialchars($sp["title"]) ?><?php if (empty($sp["is_available"])): ?><br><span class="badge bg-secondary">Hết hàng</span><?php endif; ?></td>
+                                <td>
+                                    <?= htmlspecialchars($sp["title"]) ?>
+                                    <br><small class="text-muted">Tồn kho: <?= (int)$sp["stock_quantity"] ?></small>
+                                    <?php if (empty($sp["is_available"]) || (int)$sp["stock_quantity"] === 0): ?><br><span class="badge bg-secondary">Hết hàng</span><?php elseif ((int)$sp["stock_quantity"] < $sp["soluong"]): ?><br><span class="badge bg-warning text-dark">Vượt quá tồn kho</span><?php endif; ?>
+                                </td>
                                 <td><?= number_format($sp["price"], 0, ",", ".") ?> đ</td>
                                 <td>
                                     <input type="number" name="qty[<?= $sp["id"] ?>]" 
-                                           value="<?= $sp["soluong"] ?>" min="0" 
+                                           value="<?= $sp["soluong"] ?>" min="0" max="<?= (int)$sp["stock_quantity"] ?>"
                                            class="form-control form-control-sm text-center">
                                 </td>
                                 <td class="fw-bold text-danger"><?= number_format($sp["thanhtien"], 0, ",", ".") ?> đ</td>
@@ -91,12 +104,13 @@ if (count($cart) > 0) {
                     <div>
                         <button type="submit" class="btn btn-secondary">Cập nhật số lượng</button>
                         <button type="submit" formaction="cart_clear.php" 
+                                name="clear" value="1"
                                 onclick="return confirm('Xóa toàn bộ giỏ hàng?')" 
                                 class="btn btn-outline-danger">Xóa hết</button>
                     </div>
                     <div>
                         <a href="index.php" class="btn btn-outline-primary">Tiếp tục chọn sách</a>
-                        <?php if ($hasUnavailable): ?><button type="button" class="btn btn-success fw-bold px-4" disabled>Đang có sách hết hàng</button><?php else: ?><a href="checkout.php" class="btn btn-success fw-bold px-4">Đặt hàng ngay ➔</a><?php endif; ?>
+                        <?php if ($hasUnavailable): ?><button type="button" class="btn btn-success fw-bold px-4" disabled>Vui lòng kiểm tra tồn kho</button><?php elseif (($_SESSION["user_role"] ?? null) === "seller"): ?><button type="button" class="btn btn-success fw-bold px-4" disabled>Người bán không thể đặt hàng</button><?php elseif (($_SESSION["user_role"] ?? null) !== "customer"): ?><a href="login.php?next=checkout" class="btn btn-success fw-bold px-4">Đăng nhập để đặt hàng ➔</a><?php else: ?><a href="checkout.php" class="btn btn-success fw-bold px-4">Đặt hàng ngay ➔</a><?php endif; ?>
                     </div>
                 </div>
             </form>

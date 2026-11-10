@@ -9,6 +9,7 @@ $categories = mysqli_query($conn, "SELECT id, name FROM categories ORDER BY name
 $error = "";
 $title = $author = $description = "";
 $price = 0;
+$stockQuantity = 0;
 $categoryIds = [];
 $newCategoryInput = "";
 
@@ -22,6 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $author = trim($_POST["author"] ?? "");
     $description = trim($_POST["description"] ?? "");
     $price = (int)($_POST["price"] ?? 0);
+    $stockQuantity = filter_var($_POST["stock_quantity"] ?? null, FILTER_VALIDATE_INT);
     $categoryInput = $_POST["new_categories"] ?? "";
     $newCategoryInput = is_string($categoryInput) ? $categoryInput : "";
     $pendingCategoryNames = [];
@@ -34,8 +36,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error
     );
 
-    if ($validCategories && ($title === "" || $author === "" || $price <= 0)) {
-        $error = "Vui lòng nhập tên sách, tác giả và giá hợp lệ.";
+    if ($stockQuantity === false || $stockQuantity < 0 || $stockQuantity > 4294967295) {
+        $error = "Số lượng tồn kho không hợp lệ.";
+    } elseif ($validCategories && ($title === "" || $author === "" || $price <= 0)) {
+        $error = "Vui lòng nhập tên sách, tác giả, giá và tồn kho hợp lệ.";
     } elseif ($validCategories) {
         $imageError = "";
         $pendingImage = save_book_image($_FILES["image"] ?? [], $imageError);
@@ -52,10 +56,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $fallback = $fallbackCategory ? mysqli_fetch_assoc($fallbackCategory) : null;
                     $categoryId = (int)($fallback["id"] ?? 0);
                 }
-                $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, pending_image, description, category_id, seller_id, approval_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $availability = $stockQuantity > 0 ? 1 : 0;
+                $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, pending_image, description, category_id, seller_id, approval_status, stock_quantity, is_available) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $saved = $stmt !== false && $categoryId > 0;
                 if ($saved) {
-                    mysqli_stmt_bind_param($stmt, "ssisssiis", $title, $author, $price, $imageName, $pendingImage, $description, $categoryId, $sellerId, $approvalStatus);
+                    mysqli_stmt_bind_param($stmt, "ssisssiisii", $title, $author, $price, $imageName, $pendingImage, $description, $categoryId, $sellerId, $approvalStatus, $stockQuantity, $availability);
                     $saved = mysqli_stmt_execute($stmt);
                 }
                 if ($saved) {
@@ -116,6 +121,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     </div>
                 </div>
                 <div class="mb-3"><label class="form-label">Giá bán (đ)</label><input class="form-control" type="number" min="1" name="price" value="<?= $price ?: "" ?>" required></div>
+                <div class="mb-3"><label class="form-label">Số lượng tồn kho</label><input class="form-control" type="number" min="0" name="stock_quantity" value="<?= htmlspecialchars((string)$stockQuantity) ?>" required></div>
                 <div class="mb-3"><label class="form-label">Ảnh bìa (JPG, PNG, WebP; tối đa 5 MB)</label><input class="form-control" type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
                 <div class="mb-3"><label class="form-label">Mô tả</label><textarea class="form-control" name="description" rows="4"><?= htmlspecialchars($description) ?></textarea></div>
                 <p class="text-muted">Sách và ảnh sẽ được admin kiểm tra trước khi hiển thị trên cửa hàng.</p>

@@ -120,7 +120,7 @@ if (($_SESSION["user_role"] ?? null) === "customer" && isset($_SESSION["user_id"
                 <p class="text-muted">Thể loại: <span class="badge bg-secondary"><?= htmlspecialchars($book['category_names'] ?? "") ?></span></p>
                 <h3 class="text-danger my-3"><?= number_format($book['price'], 0, ',', '.') ?> đ</h3>
                 <p class="text-warning mb-3"><?= $reviewCount > 0 ? number_format($averageRating, 1) . " / 5 ★ · " . $reviewCount . " đánh giá" : "Chưa có đánh giá" ?></p>
-                <?php if (empty($book["is_available"])): ?><p><span class="badge bg-secondary">Hết hàng</span></p><?php endif; ?>
+                <?php if (empty($book["is_available"]) || (int)$book["stock_quantity"] < 1): ?><p><span class="badge bg-secondary">Hết hàng</span></p><?php else: ?><p class="text-muted">Còn <?= (int)$book["stock_quantity"] ?> cuốn</p><?php endif; ?>
 
                 <p class="mt-4"><strong>Mô tả nội dung:</strong></p>
                 <p class="text-justify"><?= nl2br(htmlspecialchars($book['description'])) ?></p>
@@ -128,19 +128,19 @@ if (($_SESSION["user_role"] ?? null) === "customer" && isset($_SESSION["user_id"
                 <hr class="my-4">
 
                 <!-- Form chọn số lượng và mua -->
-                <?php if (!empty($book["is_available"])): ?><form action="cart_add.php" method="post" class="row g-3 align-items-center">
+                <?php if (!empty($book["is_available"]) && (int)$book["stock_quantity"] > 0): ?><form action="cart_add.php" method="post" class="row g-3 align-items-center">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="id" value="<?= $book['id'] ?>">
                     <div class="col-auto">
                         <label for="qty" class="col-form-label fw-bold">Số lượng mua:</label>
                     </div>
                     <div class="col-auto">
-                        <input type="number" id="qty" name="qty" class="form-control" value="1" min="1" style="width: 80px;">
+                        <input type="number" id="qty" name="qty" class="form-control" value="1" min="1" max="<?= (int)$book["stock_quantity"] ?>" style="width: 80px;">
                     </div>
                     <div class="col-auto">
                         <button type="submit" class="btn btn-primary px-4">🛒 Thêm vào giỏ hàng</button>
                     </div>
-                </form>
-                <?php endif; ?>
+                </form><?php else: ?><p class="text-secondary">Sách hiện hết hàng.</p><?php endif; ?>
             </div>
         </div>
 

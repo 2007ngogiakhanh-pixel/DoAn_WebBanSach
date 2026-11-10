@@ -13,7 +13,7 @@ function require_role(string $role): void
             return;
         }
 
-        unset($_SESSION["user_id"], $_SESSION["user_name"], $_SESSION["user_role"]);
+        unset($_SESSION["user_id"], $_SESSION["user_name"], $_SESSION["user_role"], $_SESSION["cart"]);
         session_regenerate_id(true);
     }
 

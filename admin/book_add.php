@@ -2,6 +2,7 @@
 // admin/book_add.php - Thêm sách mới
 session_start();
 if (!isset($_SESSION["admin"])) { header("Location: login.php"); exit; }
+require "../auth.php";
 require "../db.php";
 require "../book_helpers.php";
 
@@ -11,11 +12,17 @@ $categoryIds = [];
 $newCategoryInput = "";
 $title = $author = $description = "";
 $price = "";
+$stockQuantity = 0;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if (!verify_csrf_token()) {
+        http_response_code(403);
+        exit("Yêu cầu không hợp lệ. Vui lòng tải lại trang và thử lại.");
+    }
     $title = trim($_POST["title"] ?? "");
     $author = trim($_POST["author"] ?? "");
     $price = (int)($_POST["price"] ?? 0);
+    $stockQuantity = filter_var($_POST["stock_quantity"] ?? null, FILTER_VALIDATE_INT);
     $description = trim($_POST["description"] ?? "");
     $categoryInput = $_POST["new_categories"] ?? "";
     $newCategoryInput = is_string($categoryInput) ? $categoryInput : "";
@@ -41,16 +48,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if (!$validCategories) {
         $loi = $categoryError;
+    } elseif ($stockQuantity === false || $stockQuantity < 0 || $stockQuantity > 4294967295) {
+        $loi = "Vui lòng nhập số lượng tồn kho hợp lệ.";
     } elseif ($title == "" || $price <= 0) {
         $loi = "Vui lòng điền tiêu đề, giá hợp lệ và chọn ít nhất một thể loại.";
     } else {
         if (mysqli_begin_transaction($conn)) {
             $saved = create_book_categories($conn, $pendingCategoryNames, $categoryIds);
             $category_id = $categoryIds[0] ?? 0;
-            $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, description, category_id) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt = mysqli_prepare($conn, "INSERT INTO books (title, author, price, image, description, category_id, stock_quantity, is_available) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $saved = $saved && $stmt !== false && $category_id > 0;
             if ($saved) {
-                mysqli_stmt_bind_param($stmt, "ssissi", $title, $author, $price, $image_name, $description, $category_id);
+                $availability = $stockQuantity > 0 ? 1 : 0;
+                mysqli_stmt_bind_param($stmt, "ssissiii", $title, $author, $price, $image_name, $description, $category_id, $stockQuantity, $availability);
                 $saved = mysqli_stmt_execute($stmt);
             }
             if ($saved) {
@@ -84,6 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <?php if ($loi != ""): ?><div class="alert alert-danger"><?= $loi ?></div><?php endif; ?>
 
                 <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tên sách (*):</label>
                         <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($title) ?>" required>
@@ -111,6 +122,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <input class="form-control" id="new-categories" name="new_categories" value="<?= htmlspecialchars($newCategoryInput) ?>" maxlength="500" placeholder="Ví dụ: Truyện trinh thám, Lịch sử">
                                 <div class="form-text">Thể loại mới do admin thêm sẽ có hiệu lực ngay. Có thể nhập nhiều thể loại, cách nhau bằng dấu phẩy.</div>
                             </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Số lượng tồn kho:</label>
+                            <input type="number" name="stock_quantity" class="form-control" value="<?= htmlspecialchars((string)$stockQuantity) ?>" min="0" required>
                         </div>
                     </div>
                     <div class="row">
