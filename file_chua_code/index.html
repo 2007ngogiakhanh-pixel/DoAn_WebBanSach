@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Khám phá sách hay, chọn sách yêu thích tại Nhà Sách Mộc.">
+    <title>Nhà Sách Mộc | Mở trang sách, mở chân trời</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="#" aria-label="Nhà Sách Mộc - Trang chủ">
+            <span class="brand-mark" aria-hidden="true">M</span>
+            <span>nhà sách <strong>mộc</strong></span>
+        </a>
+
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">
+            <span class="sr-only">Mở menu</span>
+            <span></span><span></span><span></span>
+        </button>
+
+        <nav class="main-nav" id="main-nav" aria-label="Điều hướng chính">
+            <a href="#sach-moi">Sách mới</a>
+            <a href="#danh-muc">Danh mục</a>
+            <a href="#ve-chung-toi">Về Mộc</a>
+        </nav>
+
+        <button class="cart-button" type="button" aria-label="Giỏ hàng, 0 sản phẩm">
+            Giỏ hàng <span class="cart-count" aria-live="polite">0</span>
+        </button>
+    </header>
+
+    <main>
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <p class="eyebrow">GÓC NHỎ DÀNH CHO NGƯỜI YÊU SÁCH</p>
+                <h1 id="hero-title">Mở trang sách,<br><span>mở chân trời.</span></h1>
+                <p class="hero-description">
+                    Tìm một cuốn sách hợp với bạn, bắt đầu một hành trình mới
+                    và dành thời gian cho những điều ý nghĩa.
+                </p>
+                <a class="button button-primary" href="#sach-moi">Khám phá sách <span aria-hidden="true">→</span></a>
+                <div class="hero-note">
+                    <span class="note-stars" aria-hidden="true">★★★★★</span>
+                    <span>Được yêu thích bởi những người mê đọc sách</span>
+                </div>
+            </div>
+
+            <div class="hero-art" aria-label="Minh họa những cuốn sách">
+                <div class="sun-shape"></div>
+                <div class="plant plant-one" aria-hidden="true">✦</div>
+                <div class="hero-book book-back" aria-hidden="true"><span>NHỮNG<br>NGÀY<br>THƠ ẤU</span></div>
+                <div class="hero-book book-front" aria-hidden="true"><span>ĐI TÌM<br>HẠNH PHÚC</span><small>MỘT HÀNH TRÌNH NHỎ</small></div>
+                <div class="hero-caption">Một cuốn sách hay<br>có thể thay đổi một ngày.</div>
+            </div>
+        </section>
+
+        <section class="benefits" aria-label="Lợi ích khi mua sách tại Mộc">
+            <div><span class="benefit-icon" aria-hidden="true">✳</span><span><strong>Chọn sách có tâm</strong><small>Gợi ý từ người yêu sách</small></span></div>
+            <div><span class="benefit-icon" aria-hidden="true">♧</span><span><strong>Gói quà xinh xắn</strong><small>Gửi tặng người thương</small></span></div>
+            <div><span class="benefit-icon" aria-hidden="true">♡</span><span><strong>Đọc sách mỗi ngày</strong><small>Bắt đầu từ một trang</small></span></div>
+        </section>
+
+        <section class="catalog section-wrap" id="sach-moi" aria-labelledby="catalog-title">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">MỘT GỢI Ý DÀNH CHO BẠN</p>
+                    <h2 id="catalog-title">Sách được yêu thích</h2>
+                </div>
+                <p class="section-intro">Những câu chuyện và ý tưởng đang chờ bạn khám phá.</p>
+            </div>
+
+            <div class="catalog-tools" id="danh-muc">
+                <label class="search-box">
+                    <span class="sr-only">Tìm sách theo tên hoặc tác giả</span>
+                    <span aria-hidden="true">⌕</span>
+                    <input id="book-search" type="search" placeholder="Tìm tên sách, tác giả...">
+                </label>
+                <div class="category-filters" role="group" aria-label="Lọc sách theo thể loại">
+                    <button class="filter-button is-active" type="button" data-category="Tất cả">Tất cả</button>
+                    <button class="filter-button" type="button" data-category="Văn học">Văn học</button>
+                    <button class="filter-button" type="button" data-category="Kỹ năng">Kỹ năng</button>
+                    <button class="filter-button" type="button" data-category="Thiếu nhi">Thiếu nhi</button>
+                </div>
+            </div>
+
+            <div class="book-grid" id="book-grid" aria-live="polite"></div>
+            <p class="empty-message" id="empty-message" hidden>Chưa tìm thấy sách phù hợp. Bạn thử từ khóa khác nhé.</p>
+        </section>
+
+        <section class="quote-banner" id="ve-chung-toi">
+            <span class="quote-mark" aria-hidden="true">“</span>
+            <div>
+                <p>Đọc sách là cách ta trò chuyện với những tâm hồn chưa từng gặp.</p>
+                <span>GÓC NHỎ NHÀ MỘC</span>
+            </div>
+            <a href="#sach-moi">Chọn cuốn sách tiếp theo <span aria-hidden="true">→</span></a>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <a class="brand footer-brand" href="#">
+            <span class="brand-mark" aria-hidden="true">M</span>
+            <span>nhà sách <strong>mộc</strong></span>
+        </a>
+        <p>Một góc nhỏ để tìm thấy những cuốn sách lớn.</p>
+        <span>© 2026 Nhà Sách Mộc</span>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

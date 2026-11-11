@@ -1,0 +1,12 @@
+-- GHI CHU SQL
+-- Cac file SQL migration trong thu muc goc:
+-- ../database_book_categories_migration.sql
+-- ../database_book_review_migration.sql
+-- ../database_checkout_cart_migration.sql
+-- ../database_integrity_migration.sql
+-- ../database_order_status_reviews_migration.sql
+-- ../database_orders_inventory_migration.sql
+-- ../database_roles_migration.sql
+--
+-- Cac file nay tao/cap nhat bang trong database bookstore.
+-- Day la cac migration, khong phai mot ban sao day du cua database.
