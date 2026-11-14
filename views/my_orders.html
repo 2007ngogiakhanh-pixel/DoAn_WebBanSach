@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đơn hàng đã mua</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <?php include "menu.php"; ?>
+    <main class="container my-4">
+        <h2>Đơn hàng đã mua</h2>
+        <form class="row g-2 my-3" method="get">
+            <div class="col-sm-8 col-md-5"><input class="form-control" name="order_code" value="<?= htmlspecialchars($orderCode) ?>" placeholder="Tìm theo mã đơn 10 chữ số"></div>
+            <div class="col-auto"><button class="btn btn-primary" type="submit">Tìm đơn</button><a class="btn btn-outline-secondary ms-1" href="my_orders.php">Xóa tìm kiếm</a></div>
+        </form>
+        <?php if ($error !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+        <?php if ($orders && mysqli_num_rows($orders) === 0): ?><div class="alert alert-info">Không tìm thấy đơn hàng.</div><?php endif; ?>
+        <?php if ($orders && mysqli_num_rows($orders) > 0): ?>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Sách</th><th>Thanh toán</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
+                    <tbody>
+                    <?php while ($order = mysqli_fetch_assoc($orders)): ?>
+                        <?php
+                        $statusLabels = [
+                            "pending_confirmation" => "Chờ xác nhận",
+                            "confirmed" => "Đã xác nhận",
+                            "preparing" => "Người bán đang chuẩn bị hàng",
+                            "shipping" => "Đang vận chuyển đơn hàng",
+                            "delivered" => "Đã nhận được hàng",
+                            "cancelled" => "Đã hủy",
+                            "cancellation_requested" => "Chờ duyệt hủy đơn",
+                            "return_requested" => "Chờ duyệt trả hàng",
+                            "return_authorized" => "Đã xác nhận gửi trả",
+                            "refund_pending" => "Chờ hoàn tiền",
+                            "refunded" => "Đã hoàn tiền",
+                            "returned" => "Đã trả hàng",
+                        ];
+                        ?>
+                        <tr>
+                            <td><?= htmlspecialchars($order["order_code"]) ?></td>
+                            <td><?= htmlspecialchars($order["items"] ?? "") ?></td>
+                            <td><?= $order["payment_method"] === "bank_transfer" ? "Chuyển khoản thủ công" : "Thanh toán khi nhận hàng (COD)" ?></td>
+                            <td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td>
+                            <td>
+                                <?= htmlspecialchars($statusLabels[$order["status"]] ?? $order["status"]) ?>
+                                <?php if (in_array($order["status"], ["return_requested", "return_authorized", "refund_pending"], true)): ?><br><small class="text-muted">Trạng thái trả hàng/hoàn tiền đang được quản lý xử lý.</small><?php endif; ?>
+                                <?php if ($order["return_status"] === "approved"): ?><br><small class="text-muted">Quản lý đã xác nhận gửi trả; chờ hàng hoàn trả được nhận và kiểm tra.</small><?php elseif ($order["return_status"] === "received"): ?><br><small class="text-muted">Đã nhận hàng hoàn trả; quản lý đang xử lý hoàn tiền.</small><?php elseif ($order["return_status"] === "rejected"): ?><br><small class="text-muted">Yêu cầu trả hàng bị từ chối.</small><?php endif; ?>
+                                <?php if (!empty($order["return_admin_note"])): ?><br><small class="text-muted">Ghi chú quản lý: <?= nl2br(htmlspecialchars($order["return_admin_note"])) ?></small><?php endif; ?>
+                                <?php if (in_array($order["status"], ["confirmed", "preparing", "shipping"], true)): ?>
+                                    <form method="post" action="cancel_order.php" class="mt-2" onsubmit="return confirm('Bạn có chắc muốn hủy đơn hàng này?')">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                        <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
+                                        <button class="btn btn-outline-danger btn-sm" type="submit">Hủy đơn hàng</button>
+                                    </form>
+                                <?php elseif ($order["status"] === "cancellation_requested"): ?>
+                                    <small class="d-block text-muted mt-2">Yêu cầu hủy đang chờ quản lý xác nhận.</small>
+                                <?php elseif ($order["status"] === "delivered" && $order["return_status"] === null): ?>
+                                    <a class="btn btn-outline-warning btn-sm mt-2" href="return_request.php?order_id=<?= (int)$order["id"] ?>">Yêu cầu trả hàng</a>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= htmlspecialchars($order["created_at"] ?? "") ?></td>
+                        </tr>
+                    <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </main>
+</body>
+</html>

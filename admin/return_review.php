@@ -20,7 +20,7 @@ $requestId = filter_var($_POST["return_request_id"] ?? null, FILTER_VALIDATE_INT
 $action = $_POST["action"] ?? "";
 $adminNoteInput = $_POST["admin_note"] ?? "";
 $adminNote = is_string($adminNoteInput) ? trim($adminNoteInput) : "";
-if ($requestId === false || $requestId <= 0 || !in_array($action, ["approve", "reject"], true)
+if ($requestId === false || $requestId <= 0 || !in_array($action, ["approve", "reject", "receive"], true)
     || mb_strlen($adminNote, "UTF-8") > 2000) {
     http_response_code(400);
     exit("Thông tin xử lý trả hàng không hợp lệ.");
@@ -44,13 +44,14 @@ if (!$request) {
     http_response_code(404);
     exit("Không tìm thấy yêu cầu trả hàng.");
 }
-if ($request["return_status"] !== "pending" || $request["order_status"] !== "return_requested") {
+if (($action === "receive" && ($request["return_status"] !== "approved" || $request["order_status"] !== "return_authorized"))
+    || ($action !== "receive" && ($request["return_status"] !== "pending" || $request["order_status"] !== "return_requested"))) {
     mysqli_rollback($conn);
     http_response_code(409);
-    exit("Yêu cầu trả hàng đã được xử lý hoặc đơn hàng không còn ở trạng thái chờ duyệt.");
+    exit("Yêu cầu trả hàng đã được xử lý hoặc không ở đúng bước xử lý.");
 }
 
-if ($action === "approve") {
+if ($action === "receive") {
     $itemsStmt = mysqli_prepare($conn, "SELECT book_id, quantity FROM order_return_items WHERE return_request_id = ?");
     $restockStmt = mysqli_prepare($conn, "UPDATE books SET is_available = IF(stock_quantity = 0, 1, is_available), stock_quantity = stock_quantity + ? WHERE id = ?");
     if (!$itemsStmt || !$restockStmt) {
@@ -75,22 +76,24 @@ if ($action === "approve") {
             exit("Không thể nhập sản phẩm trả hàng vào kho.");
         }
     }
-    $requestStatus = "approved";
-    $orderStatus = "returned";
+    $requestStatus = "received";
+    $orderStatus = "refund_pending";
+    $updateRequest = mysqli_prepare($conn, "UPDATE order_return_requests SET status = ?, admin_note = ?, received_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'approved'");
 } else {
-    $requestStatus = "rejected";
-    $orderStatus = "delivered";
+    $requestStatus = $action === "approve" ? "approved" : "rejected";
+    $orderStatus = $action === "approve" ? "return_authorized" : "delivered";
+    $updateRequest = mysqli_prepare($conn, "UPDATE order_return_requests SET status = ?, admin_note = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'");
 }
 
-$updateRequest = mysqli_prepare($conn, "UPDATE order_return_requests SET status = ?, admin_note = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'");
-$updateOrder = mysqli_prepare($conn, "UPDATE orders SET status = ? WHERE id = ? AND status = 'return_requested'");
+$expectedOrderStatus = $action === "receive" ? "return_authorized" : "return_requested";
+$updateOrder = mysqli_prepare($conn, "UPDATE orders SET status = ? WHERE id = ? AND status = ?");
 if (!$updateRequest || !$updateOrder) {
     mysqli_rollback($conn);
     http_response_code(500);
     exit("Không thể lưu kết quả xử lý trả hàng.");
 }
 mysqli_stmt_bind_param($updateRequest, "ssi", $requestStatus, $adminNote, $requestId);
-mysqli_stmt_bind_param($updateOrder, "si", $orderStatus, $request["order_id"]);
+mysqli_stmt_bind_param($updateOrder, "sis", $orderStatus, $request["order_id"], $expectedOrderStatus);
 if (!mysqli_stmt_execute($updateRequest) || mysqli_stmt_affected_rows($updateRequest) !== 1
     || !mysqli_stmt_execute($updateOrder) || mysqli_stmt_affected_rows($updateOrder) !== 1
     || !mysqli_commit($conn)) {

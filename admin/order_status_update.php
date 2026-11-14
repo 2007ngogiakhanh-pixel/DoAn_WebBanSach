@@ -34,10 +34,12 @@ if (!is_string($orderCode) || ($orderCode !== "" && !preg_match('/\A\d{10}\z/', 
 }
 
 $transitions = [
-    "pending_confirmation" => ["confirmed", "cancelled"],
-    "confirmed" => ["preparing", "cancelled"],
-    "preparing" => ["shipping", "cancelled"],
-    "shipping" => ["delivered", "cancelled"],
+    "pending_confirmation" => ["confirmed"],
+    "confirmed" => ["preparing"],
+    "preparing" => ["shipping"],
+    "shipping" => ["delivered"],
+    "cancellation_requested" => ["cancelled", "refund_pending"],
+    "refund_pending" => ["refunded"],
 ];
 if (!mysqli_begin_transaction($conn)) {
     http_response_code(500);
@@ -82,6 +84,9 @@ $sellerTransitions = [
     "shipping" => ["delivered"],
 ];
 $allowedTransitions = $isAdmin ? $transitions : $sellerTransitions;
+if (!$isAdmin && in_array($newStatus, ["cancelled", "refund_pending", "refunded"], true)) {
+    $allowedTransitions = [];
+}
 if (!isset($allowedTransitions[$order["status"]])
     || !in_array($newStatus, $allowedTransitions[$order["status"]], true)) {
     mysqli_rollback($conn);
@@ -89,7 +94,8 @@ if (!isset($allowedTransitions[$order["status"]])
     exit("Không thể chuyển đơn sang trạng thái đã chọn.");
 }
 
-if ($newStatus === "cancelled") {
+if ($newStatus === "cancelled"
+    || ($order["status"] === "cancellation_requested" && $newStatus === "refund_pending")) {
     $details = mysqli_prepare($conn, "SELECT book_id, quantity FROM order_details WHERE order_id = ?");
     if (!$details) {
         mysqli_rollback($conn);

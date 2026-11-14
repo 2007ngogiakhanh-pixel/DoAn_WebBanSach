@@ -1,12 +1,14 @@
 <?php
-function require_role(string $role): void
+function require_role(string|array $role): void
 {
-    if (($_SESSION["user_role"] ?? null) === $role && isset($_SESSION["user_id"])) {
+    $allowedRoles = is_array($role) ? $role : [$role];
+    $sessionRole = $_SESSION["user_role"] ?? null;
+    if (is_string($sessionRole) && in_array($sessionRole, $allowedRoles, true) && isset($_SESSION["user_id"])) {
         global $conn;
 
         $stmt = mysqli_prepare($conn, "SELECT status FROM users WHERE id = ? AND role = ?");
         $userId = (int)$_SESSION["user_id"];
-        mysqli_stmt_bind_param($stmt, "is", $userId, $role);
+        mysqli_stmt_bind_param($stmt, "is", $userId, $sessionRole);
         mysqli_stmt_execute($stmt);
         $user = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
         if ($user && $user["status"] === "active") {

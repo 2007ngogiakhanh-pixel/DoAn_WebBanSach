@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cập nhật tài khoản</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <main class="container my-4" style="max-width: 860px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Cập nhật tài khoản</h2>
+            <a class="btn btn-outline-secondary" href="index.php#accounts">Quay lại</a>
+        </div>
+        <?php if ($error !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+        <form method="post" class="card card-body shadow-sm">
+            <input type="hidden" name="id" value="<?= (int)$account["id"] ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+            <h5>Thông tin tài khoản</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="full_name">Họ và tên</label>
+                    <input class="form-control" id="full_name" name="full_name" maxlength="150" value="<?= htmlspecialchars($account["full_name"]) ?>" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="email">Email tài khoản</label>
+                    <input class="form-control" type="email" id="email" name="email" maxlength="190" value="<?= htmlspecialchars($account["email"]) ?>" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="gender">Giới tính</label>
+                    <select class="form-select" id="gender" name="gender">
+                        <option value="" <?= empty($account["gender"]) ? "selected" : "" ?>>Chưa cập nhật</option>
+                        <option value="female" <?= ($account["gender"] ?? "") === "female" ? "selected" : "" ?>>Nữ</option>
+                        <option value="male" <?= ($account["gender"] ?? "") === "male" ? "selected" : "" ?>>Nam</option>
+                        <option value="other" <?= ($account["gender"] ?? "") === "other" ? "selected" : "" ?>>Khác</option>
+                        <option value="prefer_not_to_say" <?= ($account["gender"] ?? "") === "prefer_not_to_say" ? "selected" : "" ?>>Không muốn tiết lộ</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="phone">Số điện thoại</label>
+                    <input class="form-control" id="phone" name="phone" maxlength="20" value="<?= htmlspecialchars($account["phone"] ?? "") ?>" placeholder="09xxxxxxxx">
+                </div>
+            </div>
+
+            <h5 class="mt-4">Thông tin giao hàng</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="shipping_name">Tên người nhận mặc định</label>
+                    <input class="form-control" id="shipping_name" name="shipping_name" maxlength="150" value="<?= htmlspecialchars($account["shipping_name"] ?? "") ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="shipping_email">Email nhận đơn</label>
+                    <input class="form-control" type="email" id="shipping_email" name="shipping_email" maxlength="190" value="<?= htmlspecialchars($account["shipping_email"] ?? "") ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="country">Quốc gia</label>
+                    <input class="form-control" id="country" name="country" maxlength="100" value="<?= htmlspecialchars($account["country"] ?? "") ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="province">Tỉnh/thành phố</label>
+                    <input class="form-control" id="province" name="province" maxlength="100" value="<?= htmlspecialchars($account["province"] ?? "") ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="district">Quận/huyện</label>
+                    <input class="form-control" id="district" name="district" maxlength="100" value="<?= htmlspecialchars($account["district"] ?? "") ?>">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ward">Phường/xã</label>
+                    <input class="form-control" id="ward" name="ward" maxlength="100" value="<?= htmlspecialchars($account["ward"] ?? "") ?>">
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="shipping_address">Địa chỉ cụ thể</label>
+                    <input class="form-control" id="shipping_address" name="shipping_address" maxlength="255" value="<?= htmlspecialchars($account["shipping_address"] ?? "") ?>">
+                </div>
+            </div>
+
+            <h5 class="mt-4">Ngân hàng liên kết</h5>
+            <p class="form-text">Để trống cả ba trường nếu tài khoản chưa liên kết ngân hàng.</p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="bank_name">Tên ngân hàng</label>
+                    <input class="form-control" id="bank_name" name="bank_name" maxlength="100" value="<?= htmlspecialchars($account["bank_name"] ?? "") ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="bank_account_name">Tên chủ tài khoản</label>
+                    <input class="form-control" id="bank_account_name" name="bank_account_name" maxlength="150" value="<?= htmlspecialchars($account["bank_account_name"] ?? "") ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="bank_account_number">Số tài khoản</label>
+                    <input class="form-control" id="bank_account_number" name="bank_account_number" maxlength="50" value="<?= htmlspecialchars($account["bank_account_number"] ?? "") ?>">
+                </div>
+            </div>
+            <div class="mt-4">
+                <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
+                <a class="btn btn-outline-secondary" href="index.php#accounts">Hủy</a>
+            </div>
+        </form>
+    </main>
+</body>
+</html>

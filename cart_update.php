@@ -21,6 +21,7 @@ if (!is_array($postedQuantities)) {
 
 $cart = normalize_cart($_SESSION["cart"] ?? []);
 $nextCart = $cart;
+$adjusted = false;
 foreach ($postedQuantities as $rawId => $rawQuantity) {
     $id = filter_var($rawId, FILTER_VALIDATE_INT);
     $quantity = filter_var($rawQuantity, FILTER_VALIDATE_INT);
@@ -40,13 +41,21 @@ foreach ($postedQuantities as $rawId => $rawQuantity) {
     mysqli_stmt_bind_param($stmt, "i", $id);
     mysqli_stmt_execute($stmt);
     $book = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
-    if (!$book || !(bool)$book["is_available"] || ($book["seller_id"] !== null && $book["approval_status"] !== "approved")
-        || $quantity > (int)$book["stock_quantity"]) {
-        $_SESSION["cart_error"] = "Số lượng cập nhật vượt quá tồn kho hoặc sách không còn bán.";
+    if (!$book || !(bool)$book["is_available"] || ($book["seller_id"] !== null && $book["approval_status"] !== "approved")) {
+        $_SESSION["cart_error"] = "Sách không còn được bán; giỏ hàng chưa được thay đổi.";
         header("Location: cart.php");
         exit;
     }
-    $nextCart[$id] = $quantity;
+    $stock = (int)$book["stock_quantity"];
+    if ($stock === 0) {
+        unset($nextCart[$id]);
+        $adjusted = true;
+    } elseif ($quantity > $stock) {
+        $nextCart[$id] = $stock;
+        $adjusted = true;
+    } else {
+        $nextCart[$id] = $quantity;
+    }
 }
 
 $_SESSION["cart"] = $nextCart;
@@ -55,6 +64,10 @@ if (!sync_session_cart($conn)) {
     http_response_code(500);
     exit("Không thể lưu thay đổi giỏ hàng. Vui lòng thử lại.");
 }
-unset($_SESSION["cart_error"]);
+if ($adjusted) {
+    $_SESSION["cart_error"] = "Số lượng đã được tự động điều chỉnh theo tồn kho hiện tại.";
+} else {
+    unset($_SESSION["cart_error"]);
+}
 header("Location: cart.php");
 exit;

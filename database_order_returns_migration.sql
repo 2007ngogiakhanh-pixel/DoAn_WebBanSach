@@ -10,7 +10,11 @@ ALTER TABLE orders
         'shipping',
         'delivered',
         'cancelled',
+        'cancellation_requested',
         'return_requested',
+        'return_authorized',
+        'refund_pending',
+        'refunded',
         'returned'
     ) NOT NULL DEFAULT 'pending_confirmation';
 
@@ -20,16 +24,36 @@ CREATE TABLE IF NOT EXISTS order_return_requests (
     customer_id INT NOT NULL,
     reason TEXT NOT NULL,
     item_condition TEXT NOT NULL,
-    status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+    status ENUM('pending', 'approved', 'rejected', 'received') NOT NULL DEFAULT 'pending',
     admin_note TEXT NULL,
     requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP NULL DEFAULT NULL,
+    received_at TIMESTAMP NULL DEFAULT NULL,
     UNIQUE KEY uq_order_return_requests_order (order_id),
     CONSTRAINT fk_order_return_requests_order
         FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
     CONSTRAINT fk_order_return_requests_customer
         FOREIGN KEY (customer_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE order_return_requests
+    MODIFY COLUMN status ENUM('pending', 'approved', 'rejected', 'received')
+        NOT NULL DEFAULT 'pending';
+
+SELECT COUNT(*) INTO @has_return_received_at
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'order_return_requests'
+  AND COLUMN_NAME = 'received_at';
+
+SET @migration_sql = IF(
+    @has_return_received_at = 0,
+    'ALTER TABLE order_return_requests ADD COLUMN received_at TIMESTAMP NULL DEFAULT NULL AFTER reviewed_at',
+    'SELECT 1'
+);
+PREPARE migration_statement FROM @migration_sql;
+EXECUTE migration_statement;
+DEALLOCATE PREPARE migration_statement;
 
 CREATE TABLE IF NOT EXISTS order_return_items (
     return_request_id INT NOT NULL,

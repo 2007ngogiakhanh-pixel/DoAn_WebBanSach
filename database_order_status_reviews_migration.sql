@@ -9,7 +9,11 @@ ALTER TABLE orders
         'shipping',
         'delivered',
         'cancelled',
+        'cancellation_requested',
         'return_requested',
+        'return_authorized',
+        'refund_pending',
+        'refunded',
         'returned'
     )
         NOT NULL DEFAULT 'pending_confirmation' AFTER total_price;

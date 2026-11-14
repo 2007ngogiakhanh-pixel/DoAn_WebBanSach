@@ -3,7 +3,7 @@ session_start();
 require "auth.php";
 require "db.php";
 require "cart_storage.php";
-require_role("customer");
+require_role(["customer", "seller"]);
 
 $customerId = (int)$_SESSION["user_id"];
 $profileStmt = mysqli_prepare($conn, "SELECT full_name, email, shipping_name, shipping_email, phone, country, province, district, ward, shipping_address FROM users WHERE id = ?");
@@ -36,10 +36,17 @@ $shippingAddress = $profile["shipping_address"] ?? "";
 $orderNote = "";
 $paymentMethod = "cod";
 $error = "";
+$vietnamProvinces = [
+    "An Giang", "Bắc Ninh", "Cà Mau", "Cao Bằng", "Đắk Lắk", "Điện Biên", "Đồng Nai", "Đồng Tháp",
+    "Gia Lai", "Hà Tĩnh", "Hưng Yên", "Khánh Hòa", "Lai Châu", "Lâm Đồng", "Lạng Sơn", "Lào Cai",
+    "Nghệ An", "Ninh Bình", "Phú Thọ", "Quảng Ngãi", "Quảng Ninh", "Quảng Trị", "Sơn La", "Tây Ninh",
+    "Thái Nguyên", "Thanh Hóa", "Tuyên Quang", "Vĩnh Long", "Cần Thơ", "Đà Nẵng", "Hải Phòng", "Hà Nội",
+    "Huế", "Thành phố Hồ Chí Minh",
+];
 
 $bookIds = array_map("intval", array_keys($cart));
 $ids = implode(",", $bookIds);
-$booksResult = mysqli_query($conn, "SELECT id, title, price, stock_quantity, is_available, seller_id, approval_status FROM books WHERE id IN ($ids)");
+$booksResult = mysqli_query($conn, "SELECT id, title, image, price, stock_quantity, is_available, seller_id, approval_status FROM books WHERE id IN ($ids)");
 if ($booksResult === false) {
     http_response_code(500);
     exit("Không thể tải giỏ hàng. Hãy xác nhận đã chạy migration database mới nhất.");
@@ -49,9 +56,20 @@ while ($book = mysqli_fetch_assoc($booksResult)) {
     $booksById[(int)$book["id"]] = $book;
 }
 $total = 0;
+$checkoutItems = [];
 foreach ($cart as $bookId => $quantity) {
     if (isset($booksById[$bookId])) {
-        $total += (int)$booksById[$bookId]["price"] * $quantity;
+        $book = $booksById[$bookId];
+        $lineTotal = (int)$book["price"] * $quantity;
+        $total += $lineTotal;
+        $checkoutItems[] = [
+            "id" => (int)$bookId,
+            "title" => $book["title"],
+            "image" => $book["image"],
+            "price" => (int)$book["price"],
+            "quantity" => $quantity,
+            "line_total" => $lineTotal,
+        ];
     }
 }
 
@@ -68,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $recipientName = $postText("recipient_name");
     $recipientEmail = $postText("recipient_email");
     $phone = $postText("phone");
-    $country = $postText("country");
+    $country = "Việt Nam";
     $province = $postText("province");
     $district = $postText("district");
     $ward = $postText("ward");
@@ -76,11 +94,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $orderNote = $postText("order_note");
     $paymentMethod = $postText("payment_method");
 
+    $normalizedPhone = preg_replace('/[\s().-]+/', "", $phone);
+    if (is_string($normalizedPhone) && str_starts_with($normalizedPhone, "+84")) {
+        $normalizedPhone = "0" . substr($normalizedPhone, 3);
+    } elseif (is_string($normalizedPhone) && str_starts_with($normalizedPhone, "84")) {
+        $normalizedPhone = "0" . substr($normalizedPhone, 2);
+    }
+
     if ($recipientName === "" || mb_strlen($recipientName, "UTF-8") > 150
         || !filter_var($recipientEmail, FILTER_VALIDATE_EMAIL) || strlen($recipientEmail) > 190
-        || !preg_match('/\A[0-9+()\-\s]{8,20}\z/', $phone)
-        || $country === "" || mb_strlen($country, "UTF-8") > 100
-        || $province === "" || mb_strlen($province, "UTF-8") > 100
+        || !is_string($normalizedPhone) || !preg_match('/\A0[35789]\d{8}\z/', $normalizedPhone)
+        || !in_array($province, $vietnamProvinces, true)
         || $district === "" || mb_strlen($district, "UTF-8") > 100
         || $ward === "" || mb_strlen($ward, "UTF-8") > 100
         || $shippingAddress === "" || mb_strlen($shippingAddress, "UTF-8") > 255
@@ -90,6 +114,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } elseif (!mysqli_begin_transaction($conn)) {
         $error = "Không thể bắt đầu lưu đơn hàng. Vui lòng thử lại.";
     } else {
+        $phone = $normalizedPhone;
         $lockedResult = mysqli_query($conn, "SELECT id, price, stock_quantity, is_available, seller_id, approval_status FROM books WHERE id IN ($ids) FOR UPDATE");
         if ($lockedResult === false) {
             mysqli_rollback($conn);
@@ -113,7 +138,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if (!$stockValid) {
             mysqli_rollback($conn);
-            $error = "Một số sách đã hết hàng hoặc tồn kho không đủ. Vui lòng cập nhật lại giỏ hàng.";
+            foreach ($cart as $bookId => $quantity) {
+                $book = $lockedBooks[$bookId] ?? null;
+                if (!$book || !(bool)$book["is_available"]
+                    || ($book["seller_id"] !== null && $book["approval_status"] !== "approved")
+                    || (int)$book["stock_quantity"] === 0) {
+                    unset($cart[$bookId]);
+                } elseif ($quantity > (int)$book["stock_quantity"]) {
+                    $cart[$bookId] = (int)$book["stock_quantity"];
+                }
+            }
+            $_SESSION["cart"] = $cart;
+            if (!sync_session_cart($conn)) {
+                http_response_code(500);
+                exit("Không thể cập nhật giỏ hàng theo tồn kho mới.");
+            }
+            $_SESSION["cart_error"] = "Giỏ hàng đã được tự động điều chỉnh theo tồn kho mới. Vui lòng kiểm tra trước khi đặt hàng.";
+            header("Location: cart.php");
+            exit;
         } else {
             $total = 0;
             foreach ($cart as $bookId => $quantity) {
@@ -188,57 +230,4 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xác nhận đặt hàng</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <?php include "menu.php"; ?>
-    <main class="container my-5" style="max-width: 760px;">
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white"><h4 class="mb-0">Thông tin đặt hàng</h4></div>
-            <div class="card-body">
-                <p class="fs-5">Tổng tiền: <strong class="text-danger"><?= number_format($total, 0, ",", ".") ?> đ</strong></p>
-                <?php if ($error !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-                <form method="post">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
-                    <h5>Thông tin người nhận</h5>
-                    <div class="mb-3"><label class="form-label">Họ và tên</label><input class="form-control" name="recipient_name" maxlength="150" value="<?= htmlspecialchars($recipientName) ?>" required></div>
-                    <div class="mb-3"><label class="form-label">Email</label><input class="form-control" type="email" name="recipient_email" maxlength="190" value="<?= htmlspecialchars($recipientEmail) ?>" required></div>
-                    <div class="mb-3"><label class="form-label">Số điện thoại</label><input class="form-control" type="tel" name="phone" maxlength="20" value="<?= htmlspecialchars($phone) ?>" required></div>
-                    <h5 class="mt-4">Địa chỉ giao hàng</h5>
-                    <div class="mb-3"><label class="form-label">Quốc gia</label><input class="form-control" name="country" maxlength="100" value="<?= htmlspecialchars($country) ?>" required></div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3"><label class="form-label">Tỉnh/Thành phố</label><input class="form-control" name="province" maxlength="100" value="<?= htmlspecialchars($province) ?>" required></div>
-                        <div class="col-md-6 mb-3"><label class="form-label">Quận/Huyện</label><input class="form-control" name="district" maxlength="100" value="<?= htmlspecialchars($district) ?>" required></div>
-                        <div class="col-md-6 mb-3"><label class="form-label">Phường/Xã</label><input class="form-control" name="ward" maxlength="100" value="<?= htmlspecialchars($ward) ?>" required></div>
-                        <div class="col-md-6 mb-3"><label class="form-label">Địa chỉ nhận hàng</label><input class="form-control" name="shipping_address" maxlength="255" value="<?= htmlspecialchars($shippingAddress) ?>" placeholder="Số nhà, tên đường..." required></div>
-                    </div>
-                    <div class="mb-3"><label class="form-label">Ghi chú cho người bán</label><textarea class="form-control" name="order_note" rows="3" maxlength="2000"><?= htmlspecialchars($orderNote) ?></textarea></div>
-                    <fieldset class="mb-4">
-                        <legend class="form-label">Phương thức thanh toán</legend>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payment_method" id="payment-cod" value="cod" <?= $paymentMethod === "cod" ? "checked" : "" ?>>
-                            <label class="form-check-label" for="payment-cod">Thanh toán khi nhận hàng (COD)</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payment_method" id="payment-transfer" value="bank_transfer" <?= $paymentMethod === "bank_transfer" ? "checked" : "" ?>>
-                            <label class="form-check-label" for="payment-transfer">Chuyển khoản thủ công</label>
-                        </div>
-                        <div class="form-text">Chuyển khoản chưa tích hợp cổng thanh toán; bộ phận bán hàng sẽ liên hệ hướng dẫn sau khi xác nhận đơn.</div>
-                    </fieldset>
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-success btn-lg">Xác nhận mua hàng</button>
-                        <a href="cart.php" class="btn btn-outline-secondary">Quay lại giỏ hàng</a>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </main>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<?php include __DIR__ . '/views/checkout.html';
