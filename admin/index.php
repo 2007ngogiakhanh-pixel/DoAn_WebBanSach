@@ -25,9 +25,9 @@ $orderError = !is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\
 if ($orderError !== "") {
     $orders = false;
 } elseif ($orderCode === "") {
-    $orders = mysqli_query($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id ORDER BY o.created_at DESC LIMIT 100");
+    $orders = mysqli_query($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.total_price, o.created_at, u.full_name AS account_name, u.email, rr.id AS return_request_id, rr.reason AS return_reason, rr.item_condition, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(ori.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_return_items ori JOIN books b ON b.id = ori.book_id WHERE ori.return_request_id = rr.id) AS return_items, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id LEFT JOIN order_return_requests rr ON rr.order_id = o.id ORDER BY o.created_at DESC LIMIT 100");
 } else {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.total_price, o.created_at, u.full_name AS account_name, u.email, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id WHERE o.order_code = ? ORDER BY o.created_at DESC");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.total_price, o.created_at, u.full_name AS account_name, u.email, rr.id AS return_request_id, rr.reason AS return_reason, rr.item_condition, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(ori.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_return_items ori JOIN books b ON b.id = ori.book_id WHERE ori.return_request_id = rr.id) AS return_items, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN users u ON u.id = o.customer_id LEFT JOIN order_return_requests rr ON rr.order_id = o.id WHERE o.order_code = ? ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($orderStmt, "s", $orderCode);
     mysqli_stmt_execute($orderStmt);
     $orders = mysqli_stmt_get_result($orderStmt);
@@ -257,25 +257,51 @@ if ($orderError !== "") {
                                     <?php
                                     $orderStatusLabels = [
                                         "pending_confirmation" => "Chờ xác nhận",
-                                        "shipping" => "Đang giao",
-                                        "delivered" => "Đã giao",
+                                        "confirmed" => "Đã xác nhận",
+                                        "preparing" => "Người bán đang chuẩn bị hàng",
+                                        "shipping" => "Đang vận chuyển đơn hàng",
+                                        "delivered" => "Đã nhận được hàng",
                                         "cancelled" => "Đã hủy",
+                                        "return_requested" => "Chờ duyệt trả hàng",
+                                        "returned" => "Đã trả hàng",
                                     ];
                                     ?>
-                                    <form method="post" action="order_status_update.php" class="d-flex gap-1">
+                                    <form method="post" action="order_status_update.php" class="d-flex gap-1 mb-2">
                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                         <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
                                         <input type="hidden" name="order_code" value="<?= htmlspecialchars($orderCode) ?>">
                                         <select class="form-select form-select-sm" name="status" aria-label="Trạng thái đơn hàng">
                                             <option value="<?= htmlspecialchars($order["status"]) ?>" selected><?= htmlspecialchars($orderStatusLabels[$order["status"]] ?? $order["status"]) ?></option>
                                             <?php if ($order["status"] === "pending_confirmation"): ?>
-                                                <option value="shipping">Đang giao</option><option value="cancelled">Đã hủy</option>
+                                                <option value="confirmed">Đã xác nhận</option><option value="cancelled">Đã hủy</option>
+                                            <?php elseif ($order["status"] === "confirmed"): ?>
+                                                <option value="preparing">Người bán đang chuẩn bị hàng</option><option value="cancelled">Đã hủy</option>
+                                            <?php elseif ($order["status"] === "preparing"): ?>
+                                                <option value="shipping">Đang vận chuyển đơn hàng</option><option value="cancelled">Đã hủy</option>
                                             <?php elseif ($order["status"] === "shipping"): ?>
-                                                <option value="delivered">Đã giao</option><option value="cancelled">Đã hủy</option>
+                                                <option value="delivered">Đã nhận được hàng</option><option value="cancelled">Đã hủy</option>
                                             <?php endif; ?>
                                         </select>
-                                        <?php if (in_array($order["status"], ["pending_confirmation", "shipping"], true)): ?><button class="btn btn-primary btn-sm" type="submit">Lưu</button><?php endif; ?>
+                                        <?php if (in_array($order["status"], ["pending_confirmation", "confirmed", "preparing", "shipping"], true)): ?><button class="btn btn-primary btn-sm" type="submit">Lưu</button><?php endif; ?>
                                     </form>
+                                    <?php if ($order["return_request_id"] !== null): ?>
+                                        <div class="small border rounded p-2">
+                                            <strong>Yêu cầu trả hàng: <?= $order["return_status"] === "pending" ? "Chờ duyệt" : ($order["return_status"] === "approved" ? "Đã duyệt" : "Từ chối") ?></strong><br>
+                                            <span>Sản phẩm: <?= htmlspecialchars($order["return_items"] ?? "") ?></span><br>
+                                            <span>Lý do: <?= nl2br(htmlspecialchars($order["return_reason"])) ?></span><br>
+                                            <span>Tình trạng: <?= nl2br(htmlspecialchars($order["item_condition"])) ?></span>
+                                            <?php if (!empty($order["return_admin_note"])): ?><br><span>Ghi chú quản lý: <?= nl2br(htmlspecialchars($order["return_admin_note"])) ?></span><?php endif; ?>
+                                            <?php if ($order["return_status"] === "pending"): ?>
+                                                <form method="post" action="return_review.php" class="mt-2">
+                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                                    <input type="hidden" name="return_request_id" value="<?= (int)$order["return_request_id"] ?>">
+                                                    <input class="form-control form-control-sm mb-1" name="admin_note" maxlength="2000" placeholder="Ghi chú kiểm tra (không bắt buộc)">
+                                                    <button class="btn btn-success btn-sm" name="action" value="approve" type="submit">Duyệt và nhập kho</button>
+                                                    <button class="btn btn-outline-danger btn-sm" name="action" value="reject" type="submit">Từ chối</button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?= htmlspecialchars($order["created_at"] ?? "") ?></td>
                             </tr>

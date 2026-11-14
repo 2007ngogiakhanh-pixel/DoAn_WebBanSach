@@ -17,10 +17,10 @@ $orderError = !is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\
 if ($orderError !== "") {
     $sellerOrders = false;
 } elseif ($orderCode === "") {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? GROUP BY o.id ORDER BY o.created_at DESC LIMIT 100");
     mysqli_stmt_bind_param($orderStmt, "i", $sellerId);
 } else {
-    $orderStmt = mysqli_prepare($conn, "SELECT o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? AND o.order_code = ? GROUP BY o.id ORDER BY o.created_at DESC");
+    $orderStmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.customer_name, o.recipient_email, o.phone, o.address, o.order_note, o.payment_method, o.created_at, SUM(od.quantity * od.price) AS seller_total, GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') AS items FROM orders o JOIN order_details od ON od.order_id = o.id JOIN books b ON b.id = od.book_id WHERE b.seller_id = ? AND o.order_code = ? GROUP BY o.id ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($orderStmt, "is", $sellerId, $orderCode);
 }
 if ($orderError === "") {
@@ -132,13 +132,47 @@ unset($_SESSION["seller_notice"]);
                         <?php
                         $sellerOrderStatusLabels = [
                             "pending_confirmation" => "Chờ xác nhận",
-                            "shipping" => "Đang giao",
-                            "delivered" => "Đã giao",
+                            "confirmed" => "Đã xác nhận",
+                            "preparing" => "Người bán đang chuẩn bị hàng",
+                            "shipping" => "Đang vận chuyển đơn hàng",
+                            "delivered" => "Đã nhận được hàng",
                             "cancelled" => "Đã hủy",
+                            "return_requested" => "Chờ duyệt trả hàng",
+                            "returned" => "Đã trả hàng",
                         ];
                         ?>
                         <?php while ($order = mysqli_fetch_assoc($sellerOrders)): ?>
-                            <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["customer_name"]) ?></td><td><?= htmlspecialchars($order["phone"]) ?><br><small><?= htmlspecialchars($order["recipient_email"] ?? "") ?></small></td><td><?= htmlspecialchars($order["address"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= htmlspecialchars($order["order_note"] ?? "") ?></td><td><?= $order["payment_method"] === "bank_transfer" ? "Chuyển khoản thủ công" : "Thanh toán khi nhận hàng (COD)" ?></td><td><?= number_format($order["seller_total"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($sellerOrderStatusLabels[$order["status"]] ?? $order["status"]) ?></td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
+                            <?php
+                            $nextSellerStatus = [
+                                "pending_confirmation" => ["confirmed", "Xác nhận đơn hàng"],
+                                "confirmed" => ["preparing", "Bắt đầu chuẩn bị hàng"],
+                                "preparing" => ["shipping", "Bàn giao vận chuyển"],
+                                "shipping" => ["delivered", "Xác nhận đã giao"],
+                            ][$order["status"]] ?? null;
+                            ?>
+                            <tr>
+                                <td><?= htmlspecialchars($order["order_code"]) ?></td>
+                                <td><?= htmlspecialchars($order["customer_name"]) ?></td>
+                                <td><?= htmlspecialchars($order["phone"]) ?><br><small><?= htmlspecialchars($order["recipient_email"] ?? "") ?></small></td>
+                                <td><?= htmlspecialchars($order["address"]) ?></td>
+                                <td><?= htmlspecialchars($order["items"] ?? "") ?></td>
+                                <td><?= htmlspecialchars($order["order_note"] ?? "") ?></td>
+                                <td><?= $order["payment_method"] === "bank_transfer" ? "Chuyển khoản thủ công" : "Thanh toán khi nhận hàng (COD)" ?></td>
+                                <td><?= number_format($order["seller_total"], 0, ",", ".") ?> đ</td>
+                                <td>
+                                    <?= htmlspecialchars($sellerOrderStatusLabels[$order["status"]] ?? $order["status"]) ?>
+                                    <?php if ($nextSellerStatus !== null): ?>
+                                        <form method="post" action="../admin/order_status_update.php" class="mt-1">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                            <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
+                                            <input type="hidden" name="order_code" value="<?= htmlspecialchars($orderCode) ?>">
+                                            <input type="hidden" name="status" value="<?= htmlspecialchars($nextSellerStatus[0]) ?>">
+                                            <button class="btn btn-primary btn-sm" type="submit"><?= htmlspecialchars($nextSellerStatus[1]) ?></button>
+                                        </form>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= htmlspecialchars($order["created_at"] ?? "") ?></td>
+                            </tr>
                         <?php endwhile; ?>
                         </tbody>
                     </table>

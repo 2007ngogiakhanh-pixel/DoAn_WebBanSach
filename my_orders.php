@@ -15,10 +15,10 @@ if (!is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\d{10}\z/',
 if ($error !== "") {
     $orders = false;
 } elseif ($orderCode === "") {
-    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o WHERE o.customer_id = ? ORDER BY o.created_at DESC LIMIT 100");
+    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN order_return_requests rr ON rr.order_id = o.id WHERE o.customer_id = ? ORDER BY o.created_at DESC LIMIT 100");
     mysqli_stmt_bind_param($stmt, "i", $customerId);
 } else {
-    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o WHERE o.customer_id = ? AND o.order_code = ? ORDER BY o.created_at DESC");
+    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN order_return_requests rr ON rr.order_id = o.id WHERE o.customer_id = ? AND o.order_code = ? ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($stmt, "is", $customerId, $orderCode);
 }
 if ($error === "") {
@@ -53,12 +53,36 @@ if ($error === "") {
                         <?php
                         $statusLabels = [
                             "pending_confirmation" => "Chờ xác nhận",
-                            "shipping" => "Đang giao",
-                            "delivered" => "Đã giao",
+                            "confirmed" => "Đã xác nhận",
+                            "preparing" => "Người bán đang chuẩn bị hàng",
+                            "shipping" => "Đang vận chuyển đơn hàng",
+                            "delivered" => "Đã nhận được hàng",
                             "cancelled" => "Đã hủy",
+                            "return_requested" => "Chờ duyệt trả hàng",
+                            "returned" => "Đã trả hàng",
                         ];
                         ?>
-                        <tr><td><?= htmlspecialchars($order["order_code"]) ?></td><td><?= htmlspecialchars($order["items"] ?? "") ?></td><td><?= $order["payment_method"] === "bank_transfer" ? "Chuyển khoản thủ công" : "Thanh toán khi nhận hàng (COD)" ?></td><td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td><td><?= htmlspecialchars($statusLabels[$order["status"]] ?? $order["status"]) ?></td><td><?= htmlspecialchars($order["created_at"] ?? "") ?></td></tr>
+                        <tr>
+                            <td><?= htmlspecialchars($order["order_code"]) ?></td>
+                            <td><?= htmlspecialchars($order["items"] ?? "") ?></td>
+                            <td><?= $order["payment_method"] === "bank_transfer" ? "Chuyển khoản thủ công" : "Thanh toán khi nhận hàng (COD)" ?></td>
+                            <td><?= number_format($order["total_price"], 0, ",", ".") ?> đ</td>
+                            <td>
+                                <?= htmlspecialchars($statusLabels[$order["status"]] ?? $order["status"]) ?>
+                                <?php if ($order["status"] === "return_requested"): ?><br><small class="text-muted">Yêu cầu trả hàng đang được quản lý kiểm tra.</small><?php endif; ?>
+                                <?php if (!empty($order["return_admin_note"])): ?><br><small class="text-muted">Ghi chú quản lý: <?= nl2br(htmlspecialchars($order["return_admin_note"])) ?></small><?php endif; ?>
+                                <?php if (in_array($order["status"], ["confirmed", "preparing", "shipping"], true)): ?>
+                                    <form method="post" action="cancel_order.php" class="mt-2" onsubmit="return confirm('Bạn có chắc muốn hủy đơn hàng này?')">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                        <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
+                                        <button class="btn btn-outline-danger btn-sm" type="submit">Hủy đơn hàng</button>
+                                    </form>
+                                <?php elseif ($order["status"] === "delivered" && $order["return_status"] === null): ?>
+                                    <a class="btn btn-outline-warning btn-sm mt-2" href="return_request.php?order_id=<?= (int)$order["id"] ?>">Yêu cầu trả hàng</a>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= htmlspecialchars($order["created_at"] ?? "") ?></td>
+                        </tr>
                     <?php endwhile; ?>
                     </tbody>
                 </table>

@@ -2,7 +2,16 @@
 USE bookstore;
 
 ALTER TABLE orders
-    ADD COLUMN status ENUM('pending_confirmation', 'shipping', 'delivered', 'cancelled')
+    ADD COLUMN status ENUM(
+        'pending_confirmation',
+        'confirmed',
+        'preparing',
+        'shipping',
+        'delivered',
+        'cancelled',
+        'return_requested',
+        'returned'
+    )
         NOT NULL DEFAULT 'pending_confirmation' AFTER total_price;
 
 CREATE TABLE IF NOT EXISTS book_reviews (
