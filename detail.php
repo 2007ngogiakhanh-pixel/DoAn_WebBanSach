@@ -96,6 +96,7 @@ if (($_SESSION["user_role"] ?? null) === "customer" && isset($_SESSION["user_id"
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($book['title']) ?> - Chi tiết sách</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="views/assets/css/site.css" rel="stylesheet">
 </head>
 <body>
     <?php include "menu.php"; ?>
@@ -107,10 +108,9 @@ if (($_SESSION["user_role"] ?? null) === "customer" && isset($_SESSION["user_id"
                 <!-- Ghi chú: Hiển thị hình bìa sách khổ lớn. 
                      Khuyên dùng: Ảnh dạng dọc, nét rõ (kích thước khoảng 600x800px hoặc tỉ lệ 3:4) nằm trong thư mục uploads/ -->
                 <img src="uploads/<?= htmlspecialchars($book['image']) ?>" 
-                     class="img-fluid rounded shadow" 
+                     class="img-fluid rounded shadow detail-book-image"
                      alt="<?= htmlspecialchars($book['title']) ?>"
-                     style="max-height: 400px;"
-                     onerror="this.src=''"> <!-- 👈 Đã để trống: Ảnh dự phòng khi chưa tải được ảnh sách -->
+                     data-hide-on-error>
             </div>
 
             <!-- Thông tin sách -->
@@ -135,7 +135,7 @@ if (($_SESSION["user_role"] ?? null) === "customer" && isset($_SESSION["user_id"
                         <label for="qty" class="col-form-label fw-bold">Số lượng mua:</label>
                     </div>
                     <div class="col-auto">
-                        <input type="number" id="qty" name="qty" class="form-control" value="1" min="1" max="<?= (int)$book["stock_quantity"] ?>" style="width: 80px;">
+                        <input type="number" id="qty" name="qty" class="form-control detail-quantity-input" value="1" min="1" max="<?= (int)$book["stock_quantity"] ?>">
                     </div>
                     <div class="col-auto">
                         <button type="submit" class="btn btn-primary px-4">🛒 Thêm vào giỏ hàng</button>
@@ -188,5 +188,6 @@ if (($_SESSION["user_role"] ?? null) === "customer" && isset($_SESSION["user_id"
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="views/assets/js/site.js"></script>
 </body>
 </html>

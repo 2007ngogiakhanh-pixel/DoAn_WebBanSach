@@ -1,0 +1,61 @@
+.checkout-container {
+    max-width: 760px;
+}
+
+.checkout-book-image {
+    width: 48px;
+    height: 64px;
+    object-fit: cover;
+}
+
+.login-container {
+    max-width: 440px;
+}
+
+.register-container {
+    max-width: 520px;
+}
+
+.return-request-container {
+    max-width: 760px;
+}
+
+.success-container {
+    max-width: 500px;
+}
+
+.cart-quantity-column {
+    width: 120px;
+}
+
+.cart-remove-column {
+    width: 80px;
+}
+
+.cart-book-image-cell {
+    width: 90px;
+}
+
+.cart-book-image {
+    height: 60px;
+    object-fit: cover;
+}
+
+.catalog-book-image {
+    height: 220px;
+    object-fit: cover;
+}
+
+.detail-book-image {
+    max-height: 400px;
+}
+
+.detail-quantity-input {
+    width: 80px;
+}
+
+.category-list {
+    max-height: 180px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}

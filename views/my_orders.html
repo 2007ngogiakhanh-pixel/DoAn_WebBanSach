@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đơn hàng đã mua</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="views/assets/css/site.css" rel="stylesheet">
 </head>
 <body>
     <?php include "menu.php"; ?>
@@ -49,7 +50,7 @@
                                 <?php if ($order["return_status"] === "approved"): ?><br><small class="text-muted">Quản lý đã xác nhận gửi trả; chờ hàng hoàn trả được nhận và kiểm tra.</small><?php elseif ($order["return_status"] === "received"): ?><br><small class="text-muted">Đã nhận hàng hoàn trả; quản lý đang xử lý hoàn tiền.</small><?php elseif ($order["return_status"] === "rejected"): ?><br><small class="text-muted">Yêu cầu trả hàng bị từ chối.</small><?php endif; ?>
                                 <?php if (!empty($order["return_admin_note"])): ?><br><small class="text-muted">Ghi chú quản lý: <?= nl2br(htmlspecialchars($order["return_admin_note"])) ?></small><?php endif; ?>
                                 <?php if (in_array($order["status"], ["confirmed", "preparing", "shipping"], true)): ?>
-                                    <form method="post" action="cancel_order.php" class="mt-2" onsubmit="return confirm('Bạn có chắc muốn hủy đơn hàng này?')">
+                                    <form method="post" action="cancel_order.php" class="mt-2" data-confirm="Bạn có chắc muốn hủy đơn hàng này?">
                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                         <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
                                         <button class="btn btn-outline-danger btn-sm" type="submit">Hủy đơn hàng</button>
@@ -68,5 +69,6 @@
             </div>
         <?php endif; ?>
     </main>
+    <script src="views/assets/js/site.js"></script>
 </body>
 </html>

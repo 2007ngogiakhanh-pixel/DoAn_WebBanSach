@@ -8,7 +8,6 @@ $soLuongGio = array_sum($_SESSION["cart"] ?? []);
         <a class="navbar-brand fw-bold d-flex align-items-center" href="index.php">
             <!-- Ghi chú: Nếu muốn dùng logo hình ảnh thay cho chữ icon, bỏ comment dòng img dưới đây.
                  Khuyên dùng: Ảnh logo định dạng PNG trong suốt (kích thước nhỏ khoảng 40x40px hoặc 120x40px) -->
-            <!-- <img src="" alt="Logo" style="height: 30px;" class="me-2"> -->
             📚 BOOKSTORE
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
