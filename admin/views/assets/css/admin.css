@@ -32,3 +32,8 @@
     height: 50px;
     object-fit: cover;
 }
+
+.admin-stock-increment-input {
+    flex: 0 0 100px;
+    width: 100px;
+}

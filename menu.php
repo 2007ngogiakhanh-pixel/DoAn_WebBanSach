@@ -2,51 +2,58 @@
 // menu.php - Thanh menu dùng chung responsive
 $soLuongGio = array_sum($_SESSION["cart"] ?? []);
 ?>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+<div class="store-promo-bar">
+    <div class="container d-flex justify-content-between align-items-center">
+        <span>Chào mừng bạn đến với nhà sách trực tuyến</span>
+        <span class="d-none d-sm-inline">Mở sách hay · Khám phá điều mới</span>
+    </div>
+</div>
+<header class="store-header">
     <div class="container">
-        <!-- 📌 VỊ TRÍ LOGO WEBSITE (NẾU MUỐN THÊM LOGO DẠNG HÌNH ẢNH) -->
-        <a class="navbar-brand fw-bold d-flex align-items-center" href="index.php">
-            <!-- Ghi chú: Nếu muốn dùng logo hình ảnh thay cho chữ icon, bỏ comment dòng img dưới đây.
-                 Khuyên dùng: Ảnh logo định dạng PNG trong suốt (kích thước nhỏ khoảng 40x40px hoặc 120x40px) -->
-            📚 BOOKSTORE
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <a class="nav-link active" href="index.php">Trang chủ</a>
-                </li>
-            </ul>
-            <div class="d-flex align-items-center">
+        <div class="store-header-main">
+            <a class="store-brand" href="index.php" aria-label="Bookstore - Trang chủ">
+                <span class="store-brand-icon" aria-hidden="true">B</span>
+                <span class="store-brand-name">BOOK<span>STORE</span><small>GÓC NHỎ CỦA TRI THỨC</small></span>
+            </a>
+            <form class="store-search" method="get" action="index.php" role="search">
+                <label class="visually-hidden" for="store-search-input">Tìm sách, tác giả</label>
+                <input id="store-search-input" type="search" name="q" placeholder="Tìm sách, tác giả..." autocomplete="off">
+                <button type="submit" aria-label="Tìm kiếm">Tìm kiếm</button>
+            </form>
+            <div class="store-header-actions">
                 <?php if (isset($_SESSION["admin"])): ?>
-                    <span class="navbar-text text-white me-3">Admin</span>
-                    <a href="admin/index.php" class="btn btn-outline-info me-2">Quản trị</a>
-                    <a href="admin/logout.php" class="btn btn-outline-light me-2">Đăng xuất</a>
+                    <a href="admin/index.php" class="store-account-link"><span aria-hidden="true">⚙</span><span>Quản trị</span></a>
+                    <a href="admin/logout.php" class="store-account-link"><span aria-hidden="true">↪</span><span>Đăng xuất</span></a>
                 <?php elseif (isset($_SESSION["user_id"])): ?>
-                    <span class="navbar-text text-white me-3">
-                        <?= htmlspecialchars($_SESSION["user_name"]) ?>
-                        (<?= ($_SESSION["user_role"] ?? "") === "seller" ? "Người bán" : "Khách hàng" ?>)
-                    </span>
+                    <div class="store-user-greeting">
+                        <span class="store-action-icon" aria-hidden="true">♙</span>
+                        <span><?= htmlspecialchars($_SESSION["user_name"]) ?><small><?= ($_SESSION["user_role"] ?? "") === "seller" ? "Người bán" : "Khách hàng" ?></small></span>
+                    </div>
                     <?php if (($_SESSION["user_role"] ?? "") === "seller"): ?>
-                        <a href="seller/index.php" class="btn btn-outline-info me-2">Khu vực người bán</a>
+                        <a href="seller/index.php" class="store-account-link"><span aria-hidden="true">▤</span><span>Kênh bán hàng</span></a>
                     <?php endif; ?>
                     <?php if (in_array($_SESSION["user_role"] ?? "", ["customer", "seller"], true)): ?>
-                        <a href="my_orders.php" class="btn btn-outline-info me-2">Đơn đã mua</a>
+                        <a href="my_orders.php" class="store-account-link"><span aria-hidden="true">▣</span><span>Đơn hàng</span></a>
                     <?php endif; ?>
-                    <a href="logout.php" class="btn btn-outline-light me-2">Đăng xuất</a>
+                    <a href="logout.php" class="store-account-link"><span aria-hidden="true">↪</span><span>Đăng xuất</span></a>
                 <?php else: ?>
-                    <a href="login.php" class="btn btn-outline-light me-2">Đăng nhập</a>
-                    <a href="register.php" class="btn btn-warning me-2">Đăng ký</a>
+                    <a href="login.php" class="store-account-link"><span aria-hidden="true">♙</span><span>Tài khoản<small>Đăng nhập</small></span></a>
+                    <a href="register.php" class="store-account-link"><span aria-hidden="true">＋</span><span>Đăng ký</span></a>
                 <?php endif; ?>
-                <a href="cart.php" class="btn btn-outline-light position-relative">
-                    🛒 Giỏ hàng
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                        <?= $soLuongGio ?>
-                    </span>
+                <a href="cart.php" class="store-cart-link">
+                    <span class="store-action-icon" aria-hidden="true">🛒</span>
+                    <span class="store-cart-label">Giỏ hàng</span>
+                    <span class="store-cart-count"><?= $soLuongGio ?></span>
                 </a>
             </div>
         </div>
+        <nav class="store-navigation" aria-label="Điều hướng chính">
+            <a href="index.php" class="store-nav-home"><span aria-hidden="true">☰</span> Danh mục sách</a>
+            <a href="index.php">Trang chủ</a>
+            <?php if (isset($_SESSION["user_id"]) && in_array($_SESSION["user_role"] ?? "", ["customer", "seller"], true)): ?>
+                <a href="my_orders.php">Đơn hàng của tôi</a>
+            <?php endif; ?>
+            <span class="store-navigation-note">Sách hay cho mọi hành trình</span>
+        </nav>
     </div>
-</nav>
+</header>

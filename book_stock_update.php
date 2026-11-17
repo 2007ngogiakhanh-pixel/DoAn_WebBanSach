@@ -23,7 +23,7 @@ if (!verify_csrf_token()) {
 }
 
 $bookId = filter_var($_POST["book_id"] ?? null, FILTER_VALIDATE_INT);
-$stockInput = $_POST["stock_quantity"] ?? null;
+$stockInput = $_POST["stock_increment"] ?? null;
 $availabilityInput = $_POST["is_available"] ?? null;
 if ($bookId === false || $bookId <= 0 || ($stockInput === null && $availabilityInput === null)) {
     http_response_code(400);
@@ -32,17 +32,26 @@ if ($bookId === false || $bookId <= 0 || ($stockInput === null && $availabilityI
 
 if ($stockInput !== null) {
     $stockQuantity = filter_var($stockInput, FILTER_VALIDATE_INT);
-    if ($stockQuantity === false || $stockQuantity < 0 || $stockQuantity > 4294967295) {
+    if ($stockQuantity === false || $stockQuantity < 1 || $stockQuantity > 4294967295) {
         http_response_code(400);
-        exit("Số lượng tồn kho không hợp lệ.");
+        exit("Số lượng nhập thêm không hợp lệ.");
     }
+    $maxStockBeforeAdding = 4294967295 - $stockQuantity;
     if ($isAdmin) {
-        $stmt = mysqli_prepare($conn, "UPDATE books SET stock_quantity = ?, is_available = IF(? > 0, 1, 0) WHERE id = ?");
-        mysqli_stmt_bind_param($stmt, "iii", $stockQuantity, $stockQuantity, $bookId);
+        $stmt = mysqli_prepare($conn, "UPDATE books SET stock_quantity = stock_quantity + ?, is_available = 1 WHERE id = ? AND stock_quantity <= ?");
+        if (!$stmt) {
+            http_response_code(500);
+            exit("Không thể chuẩn bị cập nhật tồn kho.");
+        }
+        mysqli_stmt_bind_param($stmt, "sis", $stockQuantity, $bookId, $maxStockBeforeAdding);
     } else {
         $sellerId = (int)$_SESSION["user_id"];
-        $stmt = mysqli_prepare($conn, "UPDATE books SET stock_quantity = ?, is_available = IF(? > 0, 1, 0) WHERE id = ? AND seller_id = ?");
-        mysqli_stmt_bind_param($stmt, "iiii", $stockQuantity, $stockQuantity, $bookId, $sellerId);
+        $stmt = mysqli_prepare($conn, "UPDATE books SET stock_quantity = stock_quantity + ?, is_available = 1 WHERE id = ? AND seller_id = ? AND stock_quantity <= ?");
+        if (!$stmt) {
+            http_response_code(500);
+            exit("Không thể chuẩn bị cập nhật tồn kho.");
+        }
+        mysqli_stmt_bind_param($stmt, "siis", $stockQuantity, $bookId, $sellerId, $maxStockBeforeAdding);
     }
 } else {
     $availability = filter_var($availabilityInput, FILTER_VALIDATE_INT);
@@ -52,10 +61,18 @@ if ($stockInput !== null) {
     }
     if ($isAdmin) {
         $stmt = mysqli_prepare($conn, "UPDATE books SET is_available = ? WHERE id = ? AND (? = 0 OR stock_quantity > 0)");
+        if (!$stmt) {
+            http_response_code(500);
+            exit("Không thể chuẩn bị cập nhật trạng thái sách.");
+        }
         mysqli_stmt_bind_param($stmt, "iii", $availability, $bookId, $availability);
     } else {
         $sellerId = (int)$_SESSION["user_id"];
         $stmt = mysqli_prepare($conn, "UPDATE books SET is_available = ? WHERE id = ? AND seller_id = ? AND (? = 0 OR stock_quantity > 0)");
+        if (!$stmt) {
+            http_response_code(500);
+            exit("Không thể chuẩn bị cập nhật trạng thái sách.");
+        }
         mysqli_stmt_bind_param($stmt, "iiii", $availability, $bookId, $sellerId, $availability);
     }
 }
@@ -77,7 +94,11 @@ if (mysqli_stmt_affected_rows($stmt) === 0) {
         http_response_code(404);
         exit("Không tìm thấy sách hoặc bạn không có quyền chỉnh sửa.");
     }
-    if ($stockInput === null && $availability === 1) {
+    if ($stockInput !== null) {
+        http_response_code(409);
+        exit("Số lượng nhập thêm vượt quá giới hạn tồn kho cho phép.");
+    }
+    if ($availability === 1) {
         http_response_code(409);
         exit("Hãy tăng tồn kho trước khi bật bán lại.");
     }

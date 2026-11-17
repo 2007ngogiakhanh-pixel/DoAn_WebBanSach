@@ -7,3 +7,8 @@
     max-width: 60px;
     object-fit: cover;
 }
+
+.seller-stock-increment-input {
+    flex: 0 0 100px;
+    width: 100px;
+}

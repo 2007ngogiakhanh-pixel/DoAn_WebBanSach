@@ -57,11 +57,12 @@
                             </td>
                             <td>
                                 <span class="badge <?= $book["is_available"] && (int)$book["stock_quantity"] > 0 ? "bg-success" : "bg-secondary" ?>"><?= $book["is_available"] && (int)$book["stock_quantity"] > 0 ? "Còn hàng" : "Hết hàng" ?></span>
+                                <small class="d-block text-muted">Hiện có: <?= (int)$book["stock_quantity"] ?> cuốn</small>
                                 <form method="post" action="../book_stock_update.php" class="mt-1 d-flex gap-1">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                     <input type="hidden" name="book_id" value="<?= (int)$book["id"] ?>">
-                                    <input class="form-control form-control-sm" type="number" min="0" max="4294967295" name="stock_quantity" value="<?= (int)$book["stock_quantity"] ?>" aria-label="Số lượng tồn kho">
-                                    <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
+                                    <input class="form-control form-control-sm seller-stock-increment-input" type="number" min="1" max="<?= 4294967295 - (int)$book["stock_quantity"] ?>" name="stock_increment" placeholder="Nhập thêm" aria-label="Số lượng sách muốn nhập thêm">
+                                    <button class="btn btn-primary btn-sm" type="submit">Nhập</button>
                                 </form>
                                 <?php if ($book["is_available"] || (int)$book["stock_quantity"] > 0): ?><form method="post" action="../book_stock_update.php" class="mt-1">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">

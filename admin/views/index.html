@@ -147,11 +147,12 @@
                             </form><?php else: ?><small class="text-muted">Nhập tồn kho để bật bán</small><?php endif; ?>
                         </td>
                         <td>
+                            <small class="d-block text-muted">Hiện có: <?= (int)$row["stock_quantity"] ?> cuốn</small>
                             <form method="post" action="../book_stock_update.php" class="d-flex gap-1">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                 <input type="hidden" name="book_id" value="<?= (int)$row["id"] ?>">
-                                <input class="form-control form-control-sm" type="number" min="0" max="4294967295" name="stock_quantity" value="<?= (int)$row["stock_quantity"] ?>" aria-label="Số lượng tồn kho">
-                                <button class="btn btn-primary btn-sm" type="submit">Lưu</button>
+                                <input class="form-control form-control-sm admin-stock-increment-input" type="number" min="1" max="<?= 4294967295 - (int)$row["stock_quantity"] ?>" name="stock_increment" placeholder="Nhập thêm" aria-label="Số lượng sách muốn nhập thêm">
+                                <button class="btn btn-primary btn-sm" type="submit">Nhập</button>
                             </form>
                         </td>
                         <td>
