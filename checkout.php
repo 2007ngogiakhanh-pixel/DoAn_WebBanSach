@@ -3,6 +3,7 @@ session_start();
 require "auth.php";
 require "db.php";
 require "cart_storage.php";
+require_once "shipping_helpers.php";
 require_role(["customer", "seller"]);
 
 $customerId = (int)$_SESSION["user_id"];
@@ -36,13 +37,7 @@ $shippingAddress = $profile["shipping_address"] ?? "";
 $orderNote = "";
 $paymentMethod = "cod";
 $error = "";
-$vietnamProvinces = [
-    "An Giang", "Bắc Ninh", "Cà Mau", "Cao Bằng", "Đắk Lắk", "Điện Biên", "Đồng Nai", "Đồng Tháp",
-    "Gia Lai", "Hà Tĩnh", "Hưng Yên", "Khánh Hòa", "Lai Châu", "Lâm Đồng", "Lạng Sơn", "Lào Cai",
-    "Nghệ An", "Ninh Bình", "Phú Thọ", "Quảng Ngãi", "Quảng Ninh", "Quảng Trị", "Sơn La", "Tây Ninh",
-    "Thái Nguyên", "Thanh Hóa", "Tuyên Quang", "Vĩnh Long", "Cần Thơ", "Đà Nẵng", "Hải Phòng", "Hà Nội",
-    "Huế", "Thành phố Hồ Chí Minh",
-];
+$vietnamProvinces = vietnam_provinces();
 
 $bookIds = array_map("intval", array_keys($cart));
 $ids = implode(",", $bookIds);

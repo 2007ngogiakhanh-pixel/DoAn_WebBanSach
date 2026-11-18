@@ -15,10 +15,10 @@ if (!is_string($orderInput) || ($orderCode !== "" && !preg_match('/\A\d{10}\z/',
 if ($error !== "") {
     $orders = false;
 } elseif ($orderCode === "") {
-    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN order_return_requests rr ON rr.order_id = o.id WHERE o.customer_id = ? ORDER BY o.created_at DESC LIMIT 100");
+    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, o.cancellation_reason, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items, (SELECT GROUP_CONCAT(DISTINCT od.book_id ORDER BY od.book_id) FROM order_details od WHERE od.order_id = o.id) AS book_ids FROM orders o LEFT JOIN order_return_requests rr ON rr.order_id = o.id WHERE o.customer_id = ? ORDER BY o.created_at DESC LIMIT 100");
     mysqli_stmt_bind_param($stmt, "i", $customerId);
 } else {
-    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items FROM orders o LEFT JOIN order_return_requests rr ON rr.order_id = o.id WHERE o.customer_id = ? AND o.order_code = ? ORDER BY o.created_at DESC");
+    $stmt = mysqli_prepare($conn, "SELECT o.id, o.order_code, o.status, o.created_at, o.total_price, o.payment_method, o.cancellation_reason, rr.status AS return_status, rr.admin_note AS return_admin_note, (SELECT GROUP_CONCAT(CONCAT(od.quantity, ' x ', b.title) SEPARATOR ', ') FROM order_details od JOIN books b ON b.id = od.book_id WHERE od.order_id = o.id) AS items, (SELECT GROUP_CONCAT(DISTINCT od.book_id ORDER BY od.book_id) FROM order_details od WHERE od.order_id = o.id) AS book_ids FROM orders o LEFT JOIN order_return_requests rr ON rr.order_id = o.id WHERE o.customer_id = ? AND o.order_code = ? ORDER BY o.created_at DESC");
     mysqli_stmt_bind_param($stmt, "is", $customerId, $orderCode);
 }
 if ($error === "") {

@@ -22,6 +22,7 @@
                 <table class="table table-bordered align-middle">
                     <thead class="table-secondary"><tr><th>Mã đơn</th><th>Sách</th><th>Thanh toán</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
                     <tbody>
+                    <?php $cancellationReasons = ["Cập nhật địa chỉ giao hàng", "Thay đổi sản phẩm", "Thay đổi phương thức thanh toán", "Không có nhu cầu mua nữa", "Thủ tục thanh toán rắc rối", "Không tìm thấy lý do phù hợp"]; ?>
                     <?php while ($order = mysqli_fetch_assoc($orders)): ?>
                         <?php
                         $statusLabels = [
@@ -49,16 +50,29 @@
                                 <?php if (in_array($order["status"], ["return_requested", "return_authorized", "refund_pending"], true)): ?><br><small class="text-muted">Trạng thái trả hàng/hoàn tiền đang được quản lý xử lý.</small><?php endif; ?>
                                 <?php if ($order["return_status"] === "approved"): ?><br><small class="text-muted">Quản lý đã xác nhận gửi trả; chờ hàng hoàn trả được nhận và kiểm tra.</small><?php elseif ($order["return_status"] === "received"): ?><br><small class="text-muted">Đã nhận hàng hoàn trả; quản lý đang xử lý hoàn tiền.</small><?php elseif ($order["return_status"] === "rejected"): ?><br><small class="text-muted">Yêu cầu trả hàng bị từ chối.</small><?php endif; ?>
                                 <?php if (!empty($order["return_admin_note"])): ?><br><small class="text-muted">Ghi chú quản lý: <?= nl2br(htmlspecialchars($order["return_admin_note"])) ?></small><?php endif; ?>
+                                <?php if ($order["status"] === "cancellation_requested" && !empty($order["cancellation_reason"])): ?><br><small class="text-muted">Lý do hủy: <?= htmlspecialchars($order["cancellation_reason"]) ?></small><?php endif; ?>
                                 <?php if (in_array($order["status"], ["confirmed", "preparing", "shipping"], true)): ?>
-                                    <form method="post" action="cancel_order.php" class="mt-2" data-confirm="Bạn có chắc muốn hủy đơn hàng này?">
+                                    <form method="post" action="cancel_order.php" class="mt-2" data-confirm="Gửi yêu cầu hủy đơn hàng này?">
                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                         <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
+                                        <fieldset class="mb-2">
+                                            <legend class="form-label small mb-1">Lý do hủy đơn</legend>
+                                            <?php foreach ($cancellationReasons as $reasonIndex => $reason): ?>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="cancellation_reason" value="<?= htmlspecialchars($reason) ?>" id="cancel-reason-<?= (int)$order["id"] ?>-<?= $reasonIndex ?>" required>
+                                                    <label class="form-check-label small" for="cancel-reason-<?= (int)$order["id"] ?>-<?= $reasonIndex ?>"><?= htmlspecialchars($reason) ?></label>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </fieldset>
                                         <button class="btn btn-outline-danger btn-sm" type="submit">Hủy đơn hàng</button>
                                     </form>
                                 <?php elseif ($order["status"] === "cancellation_requested"): ?>
                                     <small class="d-block text-muted mt-2">Yêu cầu hủy đang chờ quản lý xác nhận.</small>
-                                <?php elseif ($order["status"] === "delivered" && $order["return_status"] === null): ?>
-                                    <a class="btn btn-outline-warning btn-sm mt-2" href="return_request.php?order_id=<?= (int)$order["id"] ?>">Yêu cầu trả hàng</a>
+                                <?php elseif ($order["status"] === "delivered"): ?>
+                                    <?php foreach (array_filter(array_map("intval", explode(",", $order["book_ids"] ?? ""))) as $reviewBookId): ?>
+                                        <a class="btn btn-outline-primary btn-sm mt-2" href="detail.php?id=<?= $reviewBookId ?>#reviews">Đánh giá sách</a>
+                                    <?php endforeach; ?>
+                                    <?php if ($order["return_status"] === null): ?><a class="btn btn-outline-warning btn-sm mt-2" href="return_request.php?order_id=<?= (int)$order["id"] ?>">Yêu cầu trả hàng</a><?php endif; ?>
                                 <?php endif; ?>
                             </td>
                             <td><?= htmlspecialchars($order["created_at"] ?? "") ?></td>

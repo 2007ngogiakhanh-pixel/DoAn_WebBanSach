@@ -35,6 +35,7 @@ $soLuongGio = array_sum($_SESSION["cart"] ?? []);
                     <?php if (in_array($_SESSION["user_role"] ?? "", ["customer", "seller"], true)): ?>
                         <a href="my_orders.php" class="store-account-link"><span aria-hidden="true">▣</span><span>Đơn hàng</span></a>
                     <?php endif; ?>
+                    <a href="profile.php" class="store-account-link"><span aria-hidden="true">♙</span><span>Tài khoản</span></a>
                     <a href="logout.php" class="store-account-link"><span aria-hidden="true">↪</span><span>Đăng xuất</span></a>
                 <?php else: ?>
                     <a href="login.php" class="store-account-link"><span aria-hidden="true">♙</span><span>Tài khoản<small>Đăng nhập</small></span></a>

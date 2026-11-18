@@ -11,7 +11,7 @@
 <?php include "menu.php"; ?>
 <main class="container my-4 return-request-container">
     <div class="card shadow-sm">
-        <div class="card-header"><h4 class="mb-0">Yêu cầu trả hàng - đơn <?= htmlspecialchars($order["order_code"]) ?></h4></div>
+        <div class="card-header bg-warning-subtle"><h4 class="mb-0">Yêu cầu trả hàng</h4><small class="text-muted">Mã đơn: <?= htmlspecialchars($order["order_code"]) ?></small></div>
         <div class="card-body">
             <?php if ($error !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
             <?php if ($order["status"] !== "delivered"): ?>
@@ -20,28 +20,33 @@
                 <form method="post">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                     <input type="hidden" name="order_id" value="<?= (int)$orderId ?>">
-                    <h5>Sản phẩm và số lượng cần trả</h5>
+                    <fieldset class="mb-4">
+                        <legend class="h5">Sản phẩm và số lượng cần trả</legend>
+                        <p class="form-text">Nhập số lượng muốn trả cho từng sản phẩm; để 0 nếu không trả sản phẩm đó.</p>
                     <?php while ($item = mysqli_fetch_assoc($items)): ?>
-                        <div class="row align-items-center mb-2">
-                            <label class="col-sm-8 col-form-label" for="return-<?= (int)$item["book_id"] ?>"><?= htmlspecialchars($item["title"]) ?> (đã mua: <?= (int)$item["quantity"] ?>)</label>
-                            <div class="col-sm-4"><input class="form-control" id="return-<?= (int)$item["book_id"] ?>" type="number" name="items[<?= (int)$item["book_id"] ?>]" min="0" max="<?= (int)$item["quantity"] ?>" value="<?= (int)($requestedItems[$item["book_id"]] ?? 0) ?>"></div>
+                        <div class="row g-2 align-items-center border rounded p-2 mb-2 return-item-row">
+                            <label class="col-8 col-form-label" for="return-<?= (int)$item["book_id"] ?>"><?= htmlspecialchars($item["title"]) ?><small class="d-block text-muted">Đã mua: <?= (int)$item["quantity"] ?></small></label>
+                            <div class="col-4"><input class="form-control" id="return-<?= (int)$item["book_id"] ?>" type="number" name="items[<?= (int)$item["book_id"] ?>]" min="0" max="<?= (int)$item["quantity"] ?>" value="<?= (int)($requestedItems[$item["book_id"]] ?? 0) ?>" aria-label="Số lượng trả cho <?= htmlspecialchars($item["title"]) ?>"></div>
                         </div>
                     <?php endwhile; ?>
+                    </fieldset>
                     <div class="mb-3">
                         <label class="form-label" for="reason">Lý do trả hàng</label>
-                        <textarea class="form-control" id="reason" name="reason" maxlength="2000" rows="3" required><?= htmlspecialchars($reason) ?></textarea>
+                        <textarea class="form-control" id="reason" name="reason" maxlength="2000" rows="4" placeholder="Mô tả lý do bạn muốn trả hàng" required><?= htmlspecialchars($reason) ?></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="item-condition">Tình trạng hàng hóa</label>
-                        <textarea class="form-control" id="item-condition" name="item_condition" maxlength="2000" rows="3" required><?= htmlspecialchars($itemCondition) ?></textarea>
+                        <textarea class="form-control" id="item-condition" name="item_condition" maxlength="2000" rows="4" placeholder="Mô tả tình trạng sản phẩm hiện tại" required><?= htmlspecialchars($itemCondition) ?></textarea>
                     </div>
-                    <ol class="text-muted">
+                    <ol class="text-muted small">
                         <li>Quản lý xác nhận yêu cầu gửi trả.</li>
                         <li>Sau khi nhận và kiểm tra hàng hoàn trả, quản lý cập nhật lại tồn kho.</li>
                         <li>Quản lý ghi nhận hoàn tiền. Website chưa kết nối cổng thanh toán nên bước này được xác nhận thủ công.</li>
                     </ol>
-                    <a class="btn btn-secondary" href="my_orders.php">Quay lại</a>
-                    <button class="btn btn-primary" type="submit">Gửi yêu cầu</button>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a class="btn btn-outline-secondary" href="my_orders.php">Quay lại đơn hàng</a>
+                        <button class="btn btn-primary" type="submit">Gửi yêu cầu trả hàng</button>
+                    </div>
                 </form>
             <?php endif; ?>
         </div>

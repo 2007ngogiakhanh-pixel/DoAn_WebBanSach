@@ -264,6 +264,7 @@
                                         "returned" => "Đã trả hàng",
                                     ];
                                     ?>
+                                    <?php if ($order["status"] === "cancellation_requested" && !empty($order["cancellation_reason"])): ?><p class="small text-muted mb-2">Lý do hủy: <?= htmlspecialchars($order["cancellation_reason"]) ?></p><?php endif; ?>
                                     <form method="post" action="order_status_update.php" class="d-flex gap-1 mb-2">
                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
                                         <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">

@@ -14,10 +14,24 @@ if (!verify_csrf_token()) {
 }
 
 $orderId = filter_var($_POST["order_id"] ?? null, FILTER_VALIDATE_INT);
+$reasonInput = $_POST["cancellation_reason"] ?? "";
+$cancellationReason = is_string($reasonInput) ? $reasonInput : "";
+$allowedReasons = [
+    "Cập nhật địa chỉ giao hàng",
+    "Thay đổi sản phẩm",
+    "Thay đổi phương thức thanh toán",
+    "Không có nhu cầu mua nữa",
+    "Thủ tục thanh toán rắc rối",
+    "Không tìm thấy lý do phù hợp",
+];
 $customerId = (int)$_SESSION["user_id"];
 if ($orderId === false || $orderId <= 0) {
     http_response_code(400);
     exit("Mã đơn hàng không hợp lệ.");
+}
+if (!in_array($cancellationReason, $allowedReasons, true)) {
+    http_response_code(400);
+    exit("Vui lòng chọn lý do hủy đơn hợp lệ.");
 }
 if (!mysqli_begin_transaction($conn)) {
     http_response_code(500);
@@ -45,13 +59,13 @@ if (!in_array($order["status"], ["confirmed", "preparing", "shipping"], true)) {
     exit("Chỉ có thể gửi yêu cầu hủy đơn đã xác nhận và chưa hoàn tất giao hàng.");
 }
 
-$update = mysqli_prepare($conn, "UPDATE orders SET status = 'cancellation_requested' WHERE id = ? AND status = ?");
+$update = mysqli_prepare($conn, "UPDATE orders SET status = 'cancellation_requested', cancellation_reason = ? WHERE id = ? AND status = ?");
 if (!$update) {
     mysqli_rollback($conn);
     http_response_code(500);
     exit("Không thể gửi yêu cầu hủy đơn.");
 }
-mysqli_stmt_bind_param($update, "is", $orderId, $order["status"]);
+mysqli_stmt_bind_param($update, "sis", $cancellationReason, $orderId, $order["status"]);
 if (!mysqli_stmt_execute($update) || mysqli_stmt_affected_rows($update) !== 1 || !mysqli_commit($conn)) {
     mysqli_rollback($conn);
     http_response_code(500);
