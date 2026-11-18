@@ -25,5 +25,7 @@ if ($error === "") {
     mysqli_stmt_execute($stmt);
     $orders = mysqli_stmt_get_result($stmt);
 }
+$reviewNotice = $_SESSION["review_notice"] ?? "";
+unset($_SESSION["review_notice"]);
 ?>
 <?php include __DIR__ . '/views/my_orders.html';

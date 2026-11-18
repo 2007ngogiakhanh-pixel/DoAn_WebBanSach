@@ -15,7 +15,6 @@ if (!verify_csrf_token()) {
 
 $orderId = filter_var($_POST["order_id"] ?? null, FILTER_VALIDATE_INT);
 $reasonInput = $_POST["cancellation_reason"] ?? "";
-$cancellationReason = is_string($reasonInput) ? $reasonInput : "";
 $allowedReasons = [
     "Cập nhật địa chỉ giao hàng",
     "Thay đổi sản phẩm",
@@ -24,12 +23,28 @@ $allowedReasons = [
     "Thủ tục thanh toán rắc rối",
     "Không tìm thấy lý do phù hợp",
 ];
+$cancellationReason = "";
+if (is_array($reasonInput)) {
+    if ($reasonInput === [] || count($reasonInput) > count($allowedReasons)) {
+        http_response_code(400);
+        exit("Vui lòng chọn ít nhất một lý do hủy đơn hợp lệ.");
+    }
+    foreach ($reasonInput as $reason) {
+        if (!is_string($reason) || !in_array($reason, $allowedReasons, true)) {
+            http_response_code(400);
+            exit("Vui lòng chọn lý do hủy đơn hợp lệ.");
+        }
+    }
+    $cancellationReason = implode("; ", array_values(array_unique($reasonInput)));
+} elseif (is_string($reasonInput) && in_array($reasonInput, $allowedReasons, true)) {
+    $cancellationReason = $reasonInput;
+}
 $customerId = (int)$_SESSION["user_id"];
 if ($orderId === false || $orderId <= 0) {
     http_response_code(400);
     exit("Mã đơn hàng không hợp lệ.");
 }
-if (!in_array($cancellationReason, $allowedReasons, true)) {
+if ($cancellationReason === "" || mb_strlen($cancellationReason, "UTF-8") > 255) {
     http_response_code(400);
     exit("Vui lòng chọn lý do hủy đơn hợp lệ.");
 }

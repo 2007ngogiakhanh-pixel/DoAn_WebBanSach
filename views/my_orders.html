@@ -5,22 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đơn hàng đã mua</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="views/assets/css/site.css" rel="stylesheet">
+    <link href="views/assets/css/site.css?v=3" rel="stylesheet">
 </head>
 <body>
     <?php include "menu.php"; ?>
-    <main class="container my-4">
-        <h2>Đơn hàng đã mua</h2>
-        <form class="row g-2 my-3" method="get">
+    <main class="container store-page">
+        <div class="store-page-heading">
+            <div><span class="section-eyebrow">THEO DÕI ĐƠN HÀNG</span><h1>Đơn hàng đã mua</h1></div>
+        </div>
+        <form class="row g-2 store-orders-search" method="get">
             <div class="col-sm-8 col-md-5"><input class="form-control" name="order_code" value="<?= htmlspecialchars($orderCode) ?>" placeholder="Tìm theo mã đơn 10 chữ số"></div>
-            <div class="col-auto"><button class="btn btn-primary" type="submit">Tìm đơn</button><a class="btn btn-outline-secondary ms-1" href="my_orders.php">Xóa tìm kiếm</a></div>
+            <div class="col-auto"><button class="btn store-primary-button" type="submit">Tìm đơn</button><a class="btn store-outline-button ms-1" href="my_orders.php">Xóa tìm kiếm</a></div>
         </form>
         <?php if ($error !== ""): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
+        <?php if ($reviewNotice !== ""): ?><div class="alert alert-success"><?= htmlspecialchars($reviewNotice) ?></div><?php endif; ?>
         <?php if ($orders && mysqli_num_rows($orders) === 0): ?><div class="alert alert-info">Không tìm thấy đơn hàng.</div><?php endif; ?>
         <?php if ($orders && mysqli_num_rows($orders) > 0): ?>
-            <div class="table-responsive">
+            <div class="table-responsive store-orders-table">
                 <table class="table table-bordered align-middle">
-                    <thead class="table-secondary"><tr><th>Mã đơn</th><th>Sách</th><th>Thanh toán</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
+                    <thead><tr><th>Mã đơn</th><th>Sách</th><th>Thanh toán</th><th>Tổng tiền</th><th>Trạng thái</th><th>Ngày đặt</th></tr></thead>
                     <tbody>
                     <?php $cancellationReasons = ["Cập nhật địa chỉ giao hàng", "Thay đổi sản phẩm", "Thay đổi phương thức thanh toán", "Không có nhu cầu mua nữa", "Thủ tục thanh toán rắc rối", "Không tìm thấy lý do phù hợp"]; ?>
                     <?php while ($order = mysqli_fetch_assoc($orders)): ?>
@@ -59,7 +62,7 @@
                                             <legend class="form-label small mb-1">Lý do hủy đơn</legend>
                                             <?php foreach ($cancellationReasons as $reasonIndex => $reason): ?>
                                                 <div class="form-check">
-                                                    <input class="form-check-input" type="radio" name="cancellation_reason" value="<?= htmlspecialchars($reason) ?>" id="cancel-reason-<?= (int)$order["id"] ?>-<?= $reasonIndex ?>" required>
+                                                    <input class="form-check-input" type="checkbox" name="cancellation_reason[]" value="<?= htmlspecialchars($reason) ?>" id="cancel-reason-<?= (int)$order["id"] ?>-<?= $reasonIndex ?>">
                                                     <label class="form-check-label small" for="cancel-reason-<?= (int)$order["id"] ?>-<?= $reasonIndex ?>"><?= htmlspecialchars($reason) ?></label>
                                                 </div>
                                             <?php endforeach; ?>
@@ -69,9 +72,42 @@
                                 <?php elseif ($order["status"] === "cancellation_requested"): ?>
                                     <small class="d-block text-muted mt-2">Yêu cầu hủy đang chờ quản lý xác nhận.</small>
                                 <?php elseif ($order["status"] === "delivered"): ?>
-                                    <?php foreach (array_filter(array_map("intval", explode(",", $order["book_ids"] ?? ""))) as $reviewBookId): ?>
-                                        <a class="btn btn-outline-primary btn-sm mt-2" href="detail.php?id=<?= $reviewBookId ?>#reviews">Đánh giá sách</a>
-                                    <?php endforeach; ?>
+                                    <?php if (($_SESSION["user_role"] ?? null) === "customer"): ?>
+                                        <?php foreach (array_filter(array_map("intval", explode(",", $order["book_ids"] ?? ""))) as $reviewBookId): ?>
+                                            <?php
+                                            $reviewBookStmt = mysqli_prepare($conn, "SELECT b.title, br.rating, br.comment FROM books b LEFT JOIN book_reviews br ON br.book_id = b.id AND br.customer_id = ? WHERE b.id = ?");
+                                            if (!$reviewBookStmt) {
+                                                http_response_code(500);
+                                                exit("Không thể tải thông tin đánh giá.");
+                                            }
+                                            $reviewCustomerId = (int)$_SESSION["user_id"];
+                                            mysqli_stmt_bind_param($reviewBookStmt, "ii", $reviewCustomerId, $reviewBookId);
+                                            if (!mysqli_stmt_execute($reviewBookStmt)) {
+                                                http_response_code(500);
+                                                exit("Không thể tải thông tin đánh giá.");
+                                            }
+                                            $reviewBook = mysqli_fetch_assoc(mysqli_stmt_get_result($reviewBookStmt));
+                                            $hasReview = isset($reviewBook["rating"]);
+                                            ?>
+                                            <?php if ($reviewBook): ?><div class="store-order-review mt-3">
+                                                <strong><?= htmlspecialchars($reviewBook["title"] ?? "Sách") ?></strong>
+                                                <form method="post" action="book_review.php" class="mt-2">
+                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
+                                                    <input type="hidden" name="order_id" value="<?= (int)$order["id"] ?>">
+                                                    <input type="hidden" name="book_id" value="<?= $reviewBookId ?>">
+                                                    <label class="form-label small mb-1" for="review-rating-<?= (int)$order["id"] ?>-<?= $reviewBookId ?>">Số sao</label>
+                                                    <select class="form-select form-select-sm mb-2" id="review-rating-<?= (int)$order["id"] ?>-<?= $reviewBookId ?>" name="rating" required>
+                                                        <?php for ($stars = 5; $stars >= 1; $stars--): ?>
+                                                            <option value="<?= $stars ?>" <?= (int)($reviewBook["rating"] ?? 5) === $stars ? "selected" : "" ?>><?= $stars ?> sao</option>
+                                                        <?php endfor; ?>
+                                                    </select>
+                                                    <label class="form-label small mb-1" for="review-comment-<?= (int)$order["id"] ?>-<?= $reviewBookId ?>">Nhận xét</label>
+                                                    <textarea class="form-control form-control-sm mb-2" id="review-comment-<?= (int)$order["id"] ?>-<?= $reviewBookId ?>" name="comment" rows="2" maxlength="2000" required><?= htmlspecialchars($reviewBook["comment"] ?? "") ?></textarea>
+                                                    <button class="btn store-outline-button btn-sm" type="submit"><?= $hasReview ? "Cập nhật đánh giá" : "Gửi đánh giá" ?></button>
+                                                </form>
+                                            </div><?php endif; ?>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
                                     <?php if ($order["return_status"] === null): ?><a class="btn btn-outline-warning btn-sm mt-2" href="return_request.php?order_id=<?= (int)$order["id"] ?>">Yêu cầu trả hàng</a><?php endif; ?>
                                 <?php endif; ?>
                             </td>

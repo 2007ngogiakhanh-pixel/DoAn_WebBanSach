@@ -154,7 +154,7 @@ CREATE TABLE `orders` (
   `ward` varchar(100) DEFAULT NULL,
   `order_note` text DEFAULT NULL,
   `payment_method` enum('cod','bank_transfer') NOT NULL DEFAULT 'cod',
-  `cancellation_reason` varchar(100) DEFAULT NULL
+  `cancellation_reason` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -451,16 +451,20 @@ ALTER TABLE `user_cart_items`
   ADD CONSTRAINT `fk_user_cart_items_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 -- Idempotent migration for existing databases: store customer cancellation reasons.
-SELECT COUNT(*) INTO @has_cancellation_reason
+SELECT COALESCE(MAX(CHARACTER_MAXIMUM_LENGTH), 0) INTO @cancellation_reason_length
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'orders'
   AND COLUMN_NAME = 'cancellation_reason';
 
 SET @migration_sql = IF(
-    @has_cancellation_reason = 0,
-    'ALTER TABLE orders ADD COLUMN cancellation_reason VARCHAR(100) NULL AFTER payment_method',
-    'SELECT 1'
+    @cancellation_reason_length = 0,
+    'ALTER TABLE orders ADD COLUMN cancellation_reason VARCHAR(255) NULL AFTER payment_method',
+    IF(
+        @cancellation_reason_length < 255,
+        'ALTER TABLE orders MODIFY COLUMN cancellation_reason VARCHAR(255) NULL',
+        'SELECT 1'
+    )
 );
 PREPARE migration_statement FROM @migration_sql;
 EXECUTE migration_statement;
