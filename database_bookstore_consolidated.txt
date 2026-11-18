@@ -1,0 +1,472 @@
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Máy chủ: 127.0.0.1
+-- Thời gian đã tạo: Th10 17, 2026 lúc 04:29 PM
+-- Phiên bản máy phục vụ: 10.4.32-MariaDB
+-- Phiên bản PHP: 8.0.30
+--
+-- Ban tong hop schema va cac migration hien tai cua do an web ban sach.
+-- Tai khoan mau da duoc loai bo de co the chia se schema cho nhom.
+-- Tao tai khoan moi bang trang dang ky sau khi import.
+
+CREATE DATABASE IF NOT EXISTS `bookstore`
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+USE `bookstore`;
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Cơ sở dữ liệu: `bookstore`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `books`
+--
+
+CREATE TABLE `books` (
+  `id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `author` varchar(150) NOT NULL,
+  `price` int(11) NOT NULL,
+  `image` varchar(255) DEFAULT 'default.jpg',
+  `pending_image` varchar(255) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `category_id` int(11) NOT NULL,
+  `seller_id` int(11) DEFAULT NULL,
+  `approval_status` enum('pending','approved','rejected') NOT NULL DEFAULT 'approved',
+  `is_available` tinyint(1) NOT NULL DEFAULT 1,
+  `stock_quantity` int(10) UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `books`
+--
+
+INSERT INTO `books` (`id`, `title`, `author`, `price`, `image`, `pending_image`, `description`, `category_id`, `seller_id`, `approval_status`, `is_available`, `stock_quantity`) VALUES
+(1, 'Dế Mèn Phiêu Lưu Ký', 'Tô Hoài', 55000, 'de_men_phieu_luu_ky.webp', NULL, 'Tác phẩm văn học thiếu nhi kinh điển.', 1, NULL, 'approved', 0, 0),
+(2, 'Đắc Nhân Tâm', 'Dale Carnegie', 86000, 'dac_nhan_tam.webp', NULL, 'Sách kỹ năng sống nổi tiếng thế giới.', 3, NULL, 'approved', 0, 0),
+(3, 'Lập Trình Web Với PHP & MySQL', 'Nguyễn Minh Tân', 120000, 'php_mysql.jpg', NULL, 'Sách hướng dẫn lập trình Web cơ bản.', 4, NULL, 'approved', 1, 5),
+(4, 'Nhà Giả Kim', 'Paulo Coelho', 79000, 'nha_gia_kim.webp', NULL, 'Cuốn sách bán chạy chỉ sau Kinh Thánh.', 1, NULL, 'approved', 1, 10);
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `book_categories`
+--
+
+CREATE TABLE `book_categories` (
+  `book_id` int(11) NOT NULL,
+  `category_id` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `book_categories`
+--
+
+INSERT INTO `book_categories` (`book_id`, `category_id`) VALUES
+(1, 1),
+(2, 3),
+(3, 4),
+(4, 1);
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `book_pending_categories`
+--
+
+CREATE TABLE `book_pending_categories` (
+  `book_id` int(11) NOT NULL,
+  `category_name` varchar(100) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `book_reviews`
+--
+
+CREATE TABLE `book_reviews` (
+  `id` int(11) NOT NULL,
+  `book_id` int(11) NOT NULL,
+  `customer_id` int(11) DEFAULT NULL,
+  `reviewer_name` varchar(150) NOT NULL,
+  `rating` tinyint(3) UNSIGNED NOT NULL,
+  `comment` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  CONSTRAINT `chk_book_reviews_rating` CHECK (`rating` BETWEEN 1 AND 5)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `categories`
+--
+
+CREATE TABLE `categories` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `categories`
+--
+
+INSERT INTO `categories` (`id`, `name`) VALUES
+(1, 'Văn học'),
+(2, 'Kinh tế'),
+(3, 'Kỹ năng sống'),
+(4, 'Công nghệ thông tin');
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `orders`
+--
+
+CREATE TABLE `orders` (
+  `id` int(11) NOT NULL,
+  `order_code` char(10) NOT NULL,
+  `customer_name` varchar(150) NOT NULL,
+  `recipient_email` varchar(190) DEFAULT NULL,
+  `phone` varchar(15) NOT NULL,
+  `address` varchar(700) NOT NULL,
+  `total_price` int(11) NOT NULL,
+  `status` enum('pending_confirmation','confirmed','preparing','shipping','delivered','cancelled','cancellation_requested','return_requested','return_authorized','refund_pending','refunded','returned') NOT NULL DEFAULT 'pending_confirmation',
+  `created_at` datetime DEFAULT current_timestamp(),
+  `customer_id` int(11) DEFAULT NULL,
+  `country` varchar(100) DEFAULT NULL,
+  `province` varchar(100) DEFAULT NULL,
+  `district` varchar(100) DEFAULT NULL,
+  `ward` varchar(100) DEFAULT NULL,
+  `order_note` text DEFAULT NULL,
+  `payment_method` enum('cod','bank_transfer') NOT NULL DEFAULT 'cod',
+  `cancellation_reason` varchar(100) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `order_details`
+--
+
+CREATE TABLE `order_details` (
+  `id` int(11) NOT NULL,
+  `order_id` int(11) NOT NULL,
+  `book_id` int(11) NOT NULL,
+  `quantity` int(11) NOT NULL,
+  `price` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `order_return_items`
+--
+
+CREATE TABLE `order_return_items` (
+  `return_request_id` int(11) NOT NULL,
+  `book_id` int(11) NOT NULL,
+  `quantity` int(10) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `order_return_requests`
+--
+
+CREATE TABLE `order_return_requests` (
+  `id` int(11) NOT NULL,
+  `order_id` int(11) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `reason` text NOT NULL,
+  `item_condition` text NOT NULL,
+  `status` enum('pending','approved','rejected','received') NOT NULL DEFAULT 'pending',
+  `admin_note` text DEFAULT NULL,
+  `requested_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `reviewed_at` timestamp NULL DEFAULT NULL,
+  `received_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `users`
+--
+
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL,
+  `full_name` varchar(150) NOT NULL,
+  `shipping_name` varchar(150) DEFAULT NULL,
+  `email` varchar(190) NOT NULL,
+  `gender` enum('male','female','other','prefer_not_to_say') DEFAULT NULL,
+  `shipping_email` varchar(190) DEFAULT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `role` enum('customer','seller') NOT NULL,
+  `status` enum('active','pending','rejected') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `phone` varchar(20) DEFAULT NULL,
+  `country` varchar(100) DEFAULT NULL,
+  `province` varchar(100) DEFAULT NULL,
+  `district` varchar(100) DEFAULT NULL,
+  `ward` varchar(100) DEFAULT NULL,
+  `shipping_address` varchar(255) DEFAULT NULL,
+  `bank_name` varchar(100) DEFAULT NULL,
+  `bank_account_name` varchar(150) DEFAULT NULL,
+  `bank_account_number` varchar(50) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `users`
+--
+
+-- Tai khoan mau duoc bo qua; dang ky tai khoan moi sau khi import.
+
+-- --------------------------------------------------------
+
+--
+-- Cấu trúc bảng cho bảng `user_cart_items`
+--
+
+CREATE TABLE `user_cart_items` (
+  `user_id` int(11) NOT NULL,
+  `book_id` int(11) NOT NULL,
+  `quantity` int(10) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `user_cart_items`
+--
+
+-- Khong co du lieu gio hang mau.
+
+--
+-- Chỉ mục cho các bảng đã đổ
+--
+
+--
+-- Chỉ mục cho bảng `books`
+--
+ALTER TABLE `books`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `category_id` (`category_id`),
+  ADD KEY `idx_books_seller_id` (`seller_id`);
+
+--
+-- Chỉ mục cho bảng `book_categories`
+--
+ALTER TABLE `book_categories`
+  ADD PRIMARY KEY (`book_id`,`category_id`),
+  ADD KEY `idx_book_categories_category_id` (`category_id`);
+
+--
+-- Chỉ mục cho bảng `book_pending_categories`
+--
+ALTER TABLE `book_pending_categories`
+  ADD PRIMARY KEY (`book_id`,`category_name`);
+
+--
+-- Chỉ mục cho bảng `book_reviews`
+--
+ALTER TABLE `book_reviews`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_book_reviews_book_customer` (`book_id`,`customer_id`),
+  ADD KEY `idx_book_reviews_book_created` (`book_id`,`created_at`),
+  ADD KEY `fk_book_reviews_customer` (`customer_id`);
+
+--
+-- Chỉ mục cho bảng `categories`
+--
+ALTER TABLE `categories`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Chỉ mục cho bảng `orders`
+--
+ALTER TABLE `orders`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_orders_order_code` (`order_code`),
+  ADD KEY `idx_orders_customer_id` (`customer_id`);
+
+--
+-- Chỉ mục cho bảng `order_details`
+--
+ALTER TABLE `order_details`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `order_id` (`order_id`),
+  ADD KEY `book_id` (`book_id`);
+
+--
+-- Chỉ mục cho bảng `order_return_items`
+--
+ALTER TABLE `order_return_items`
+  ADD PRIMARY KEY (`return_request_id`,`book_id`),
+  ADD KEY `fk_order_return_items_book` (`book_id`);
+
+--
+-- Chỉ mục cho bảng `order_return_requests`
+--
+ALTER TABLE `order_return_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_order_return_requests_order` (`order_id`),
+  ADD KEY `fk_order_return_requests_customer` (`customer_id`);
+
+--
+-- Chỉ mục cho bảng `users`
+--
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`);
+
+--
+-- Chỉ mục cho bảng `user_cart_items`
+--
+ALTER TABLE `user_cart_items`
+  ADD PRIMARY KEY (`user_id`,`book_id`),
+  ADD KEY `idx_user_cart_items_book_id` (`book_id`);
+
+--
+-- AUTO_INCREMENT cho các bảng đã đổ
+--
+
+--
+-- AUTO_INCREMENT cho bảng `books`
+--
+ALTER TABLE `books`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=102;
+
+--
+-- AUTO_INCREMENT cho bảng `book_reviews`
+--
+ALTER TABLE `book_reviews`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT cho bảng `categories`
+--
+ALTER TABLE `categories`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT cho bảng `orders`
+--
+ALTER TABLE `orders`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT cho bảng `order_details`
+--
+ALTER TABLE `order_details`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT cho bảng `order_return_requests`
+--
+ALTER TABLE `order_return_requests`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT cho bảng `users`
+--
+ALTER TABLE `users`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+
+--
+-- Các ràng buộc cho các bảng đã đổ
+--
+
+--
+-- Các ràng buộc cho bảng `books`
+--
+ALTER TABLE `books`
+  ADD CONSTRAINT `books_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_books_seller` FOREIGN KEY (`seller_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `book_categories`
+--
+ALTER TABLE `book_categories`
+  ADD CONSTRAINT `fk_book_categories_book` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_book_categories_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE;
+
+--
+-- Các ràng buộc cho bảng `book_pending_categories`
+--
+ALTER TABLE `book_pending_categories`
+  ADD CONSTRAINT `fk_book_pending_categories_book` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`) ON DELETE CASCADE;
+
+--
+-- Các ràng buộc cho bảng `book_reviews`
+--
+ALTER TABLE `book_reviews`
+  ADD CONSTRAINT `fk_book_reviews_book` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_book_reviews_customer` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `orders`
+--
+ALTER TABLE `orders`
+  ADD CONSTRAINT `fk_orders_customer` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Các ràng buộc cho bảng `order_details`
+--
+ALTER TABLE `order_details`
+  ADD CONSTRAINT `order_details_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `order_details_ibfk_2` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`) ON DELETE CASCADE;
+
+--
+-- Các ràng buộc cho bảng `order_return_items`
+--
+ALTER TABLE `order_return_items`
+  ADD CONSTRAINT `fk_order_return_items_book` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`),
+  ADD CONSTRAINT `fk_order_return_items_request` FOREIGN KEY (`return_request_id`) REFERENCES `order_return_requests` (`id`) ON DELETE CASCADE;
+
+--
+-- Các ràng buộc cho bảng `order_return_requests`
+--
+ALTER TABLE `order_return_requests`
+  ADD CONSTRAINT `fk_order_return_requests_customer` FOREIGN KEY (`customer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_order_return_requests_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE;
+
+--
+-- Các ràng buộc cho bảng `user_cart_items`
+--
+ALTER TABLE `user_cart_items`
+  ADD CONSTRAINT `fk_user_cart_items_book` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_user_cart_items_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+-- Idempotent migration for existing databases: store customer cancellation reasons.
+SELECT COUNT(*) INTO @has_cancellation_reason
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'orders'
+  AND COLUMN_NAME = 'cancellation_reason';
+
+SET @migration_sql = IF(
+    @has_cancellation_reason = 0,
+    'ALTER TABLE orders ADD COLUMN cancellation_reason VARCHAR(100) NULL AFTER payment_method',
+    'SELECT 1'
+);
+PREPARE migration_statement FROM @migration_sql;
+EXECUTE migration_statement;
+DEALLOCATE PREPARE migration_statement;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
